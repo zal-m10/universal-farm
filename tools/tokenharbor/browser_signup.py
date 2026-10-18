@@ -113,10 +113,33 @@ def browser_signup(email: str, password: str,
                 return {"ok": False, "email": email, "password": password,
                         "error": f"signup form not loaded (title: {title})"}
             log("filling credentials ...")
+            # Dismiss cookie banner first (may cover form elements).
+            try:
+                for sel in ['button:has-text("Essential only")',
+                            'button:has-text("Accept")',
+                            '[aria-label*="cookie" i] button']:
+                    el = page.query_selector(sel)
+                    if el and el.is_visible():
+                        el.click()
+                        page.wait_for_timeout(1000)
+                        break
+            except Exception:
+                pass
             page.fill('input[type="email"]', email)
-            pw = page.query_selector('input[type="password"]')
-            if pw:
-                pw.fill(password)
+            # Robust password fill with verification.
+            page.wait_for_selector('input[type="password"]', timeout=15000)
+            page.fill('input[type="password"]', password)
+            # Verify it stuck.
+            pw_val = page.evaluate(
+                "() => document.querySelector('input[type=\"password\"]').value")
+            if not pw_val:
+                log("WARNING: password field empty after fill, retrying ...")
+                page.evaluate(
+                    "() => document.querySelector('input[type=\"password\"]').focus()")
+                page.keyboard.type(password, delay=50)
+                pw_val = page.evaluate(
+                    "() => document.querySelector('input[type=\"password\"]').value")
+            log(f"password filled: {'OK' if pw_val else 'FAILED'}")
 
             # Wait for Turnstile to auto-verify: the widget injects a hidden
             # input named cf-turnstile-response with a token value.
