@@ -30,8 +30,32 @@ TOOLS_DIR = PROJECT_ROOT / "tools"
 
 # ── config ──────────────────────────────────────────────────────────────────
 _CONFIG_PATH = Path(__file__).resolve().parent / "config.toml"
-with open(_CONFIG_PATH, "rb") as _f:
-    _cfg = tomllib.load(_f)
+_EXAMPLE_CONFIG_PATH = Path(__file__).resolve().parent / "example.config.toml"
+
+
+def _load_config() -> dict:
+    """Load config.toml, falling back to example.config.toml, then defaults."""
+    for _p in (_CONFIG_PATH, _EXAMPLE_CONFIG_PATH):
+        if _p.exists():
+            with open(_p, "rb") as _f:
+                return tomllib.load(_f)
+    # Hardcoded defaults — farm works out of the box.
+    return {
+        "tokenharbor": {
+            "base_url": "https://tokenharbor.ai",
+            "turnstile_sitekey": "0x4AAAAAADBuC8Knz1EJZx9-",
+        },
+        "tempik": {"base_url": ""},
+        "files": {
+            "capsolver_key": "tools/.capsolver_key",
+            "proxy_list": "tools/proxies.txt",
+            "account_output": "account.json",
+        },
+        "models": {"free": ["deepseek-v4-flash:free", "mimo-v2.5:free"]},
+    }
+
+
+_cfg = _load_config()
 
 _TH_BASE_URL = _cfg["tokenharbor"]["base_url"]
 _CAPSOLVER_KEY_FILE = PROJECT_ROOT / _cfg["files"]["capsolver_key"]

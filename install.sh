@@ -97,7 +97,9 @@ echo ""
 echo "[6/6] Verifying installation..."
 OK=1
 for f in "tools/tokenharbor/farm_tui.py" \
+         "tools/tokenharbor/cli.py" \
          "tools/tokenharbor/dahl_farm.py" \
+         "tools/tokenharbor/example.config.toml" \
          "tools/tokenharbor/monitors/tokenharbor_inject_monitor.py" \
          "tools/tokenharbor/monitors/mistral_inject_monitor.py" \
          "tools/tokenharbor/monitors/dahl_inject_monitor.py"; do
@@ -110,6 +112,16 @@ for f in "tools/tokenharbor/farm_tui.py" \
 done
 if [ -f "$INSTALL_DIR/tools/tokenharbor/monitors/tokenharbor_inject_monitor.py" ]; then
     chmod +x "$INSTALL_DIR"/tools/tokenharbor/monitors/*.py
+fi
+# config.toml is gitignored — create from example on fresh install.
+if [ ! -f "$INSTALL_DIR/tools/tokenharbor/config.toml" ]; then
+    if [ -f "$INSTALL_DIR/tools/tokenharbor/example.config.toml" ]; then
+        cp "$INSTALL_DIR/tools/tokenharbor/example.config.toml" \
+           "$INSTALL_DIR/tools/tokenharbor/config.toml"
+        echo "  ✓ config.toml created from example"
+    else
+        echo "  ⚠ example.config.toml not found — cli.py will use built-in defaults"
+    fi
 fi
 if [ "$OK" -eq 1 ]; then
     echo "All critical files present. Ready to farm."
