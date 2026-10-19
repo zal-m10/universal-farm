@@ -42,13 +42,13 @@ API key gratis dari provider AI itu kepake banget buat coding, tapi bikin akun s
 | Dahl Inference | HTTP murni, tanpa email | 100 juta token |
 | GonkaRouter | HTTP murni, login pakai wallet (SIWE) | USD 20 |
 
-## Mulai cepat
+## Auto install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zal-m10/universal-farm/main/install.sh | bash
 ```
 
-Abis itu ketik `farm`, pilih provider, masukin jumlah, jalan.
+Abis itu ketik `farm`, pilih provider, masukin jumlah farm, lets farm.
 
 ## Fitur
 
