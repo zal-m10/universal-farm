@@ -1,61 +1,54 @@
 # Universal Farm
 
-Perkakas terminal interaktif untuk membuat API key dari beberapa penyedia layanan AI secara otomatis. Hasilnya dapat langsung dimasukkan ke database 9Router dan laporannya dikirim ke Telegram.
-
-Dikembangkan dari [hirotomasato/harbor](https://github.com/hirotomasato/harbor).
-
-## Tampilan
-
 ![Menu utama](assets/menu-utama.jpg)
 
+Tool TUI buat farming API key dari beberapa provider AI sekaligus. Key yang didapat bisa langsung diinject ke 9Router, dan tiap farm selesai ada notifikasi ke Telegram.
+
+Fork dari [hirotomasato/harbor](https://github.com/hirotomasato/harbor), tapi sudah jauh beda dari upstream.
+
+## Provider
+
+| Provider | Cara kerja | Dapat apa per akun |
+|---|---|---|
+| TokenHarbor | Browser Chromium asli | Akses model gratis |
+| Mistral AI | HTTP murni | Jatah gratis Mistral |
+| Dahl Inference | HTTP murni, tanpa email | 100 juta token |
+| GonkaRouter | HTTP murni, login pakai wallet (SIWE) | USD 20 |
+
+## Screenshot submenu
+
 ![Menu TokenHarbor](assets/menu-tokenharbor.jpg)
-
 ![Menu Mistral](assets/menu-mistral.jpg)
-
 ![Menu Dahl](assets/menu-dahl.jpg)
-
 ![Menu GonkaRouter](assets/menu-gonkarouter.jpg)
 
-## Penyedia yang didukung
+## Fitur
 
-| Penyedia | Metode | Imbalan per akun |
-|---|---|---|
-| TokenHarbor | Browser Chromium | Akses model gratis |
-| Mistral AI | HTTP murni | Tier gratis Mistral |
-| Dahl Inference | HTTP murni, tanpa email | 100 juta token |
-| GonkaRouter | HTTP murni, SIWE wallet | USD 20 |
+1. Menu interaktif di terminal, tinggal pilih nomor
+2. Key otomatis masuk ke database 9Router (cari node pakai baseUrl, tidak bikin duplikat, key yang sudah ada dilewati)
+3. Notifikasi Telegram tiap farm selesai: ringkasan + daftar key. Buat batch gede, progres dikirim tiap 30 key baru
+4. Proxy ganti tiap akun, format `user:pass@host:port`
+5. Buat TokenHarbor bisa pilih email sekali pakai: Tempik (punya sendiri) atau Temp Mail (tempmail.lol, langsung jalan)
+6. Capsolver opsional, ada saklar ON/OFF. Tanpa capsolver pun farm TokenHarbor tetap jalan karena pakai browser beneran
+7. Parallel farm: semua provider jalan bareng di background, aman kalau SSH putus
 
-## Kemampuan utama
-
-1. Antarmuka terminal interaktif dengan menu bernomor
-2. Injeksi otomatis ke 9Router berbasis baseUrl, idempoten dan lewati duplikat
-3. Notifikasi Telegram berisi ringkasan dan daftar key tiap run, termasuk progres tiap 30 key untuk batch besar
-4. Rotasi proxy per akun dengan format `user:pass@host:port`
-5. Pilihan surel sekali pakai: Tempik (instansi sendiri) atau Temp Mail (tempmail.lol, tanpa setup)
-6. Capsolver opsional dengan saklar ON/OFF
-7. Parallel farm: semua penyedia berjalan di background sekaligus dan tahan putus SSH
-
-## Instalasi
-
-Satu baris perintah:
+## Install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zal-m10/universal-farm/main/install.sh | bash
 ```
 
-Atau dengan wget:
+Atau pakai wget:
 
 ```bash
 wget -qO- https://raw.githubusercontent.com/zal-m10/universal-farm/main/install.sh | bash
 ```
 
-Pemasang akan mengurus paket sistem (python3, git, curl), mengklon repo ke `~/universal-farm`, membuat virtualenv beserta dependensi Python, memasang Chromium untuk Playwright, lalu mendaftarkan perintah `farm`.
+Installer bakal urus paket sistem (python3, git, curl), clone repo ke `~/universal-farm`, bikin virtualenv + install dependency Python, install Chromium buat Playwright, terus daftarin perintah `farm`.
 
-Setelah selesai, ketik `farm` untuk membuka menu.
+Abis itu ketik `farm` buat buka menunya.
 
 ## Uninstall
-
-Satu baris perintah:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zal-m10/universal-farm/main/uninstall.sh | bash
@@ -63,9 +56,9 @@ curl -fsSL https://raw.githubusercontent.com/zal-m10/universal-farm/main/uninsta
 
 Atau dari dalam aplikasi: menu `[9] Uninstall`.
 
-Perintah ini menghapus `~/universal-farm`, perintah `farm`, seluruh hasil farm (key, progres, state), dan log sementara. Instalasi 9Router tidak ikut tersentuh.
+Ini bakal hapus `~/universal-farm`, perintah `farm`, semua hasil farm (key, progres, state), dan log sementara. 9Router tidak ikut kehapus.
 
-## Instalasi manual
+## Install manual
 
 ```bash
 git clone https://github.com/zal-m10/universal-farm.git
@@ -75,7 +68,7 @@ python3 -m venv .venv
 .venv/bin/python -m playwright install chromium
 ```
 
-Pada Debian/Ubuntu, pasang juga dependensi OS untuk Chromium:
+Di Debian/Ubuntu, install juga dependency OS buat Chromium:
 
 ```bash
 .venv/bin/python -m playwright install-deps chromium
@@ -87,72 +80,70 @@ Jalankan:
 .venv/bin/python -m tools.tokenharbor.farm_tui
 ```
 
-## Panduan menu
+## Menu
 
-Menu utama:
-
-| No | Menu | Fungsi |
+| No | Menu | Buat apa |
 |---|---|---|
-| 1 | Farm TokenHarbor | Buat akun TokenHarbor via browser |
-| 2 | Farm Mistral keys | Buat API key Mistral AI via HTTP |
-| 3 | Farm Dahl keys | Buat API key Dahl Inference via HTTP |
-| 4 | Farm GonkaRouter keys | Buat API key GonkaRouter via SIWE |
-| 5 | Parallel farm | Jalankan beberapa farm di background |
-| 6 | Delay setting | Jeda antar akun dalam detik |
-| 7 | Setup Proxy | Kelola daftar proxy |
-| 8 | Setup Bot Tele | Token bot dan chat ID Telegram |
-| 9 | Uninstall | Hapus seluruh instalasi farm |
+| 1 | Farm TokenHarbor | Bikin akun TokenHarbor pakai browser |
+| 2 | Farm Mistral keys | Bikin API key Mistral pakai HTTP |
+| 3 | Farm Dahl keys | Bikin API key Dahl pakai HTTP |
+| 4 | Farm GonkaRouter keys | Bikin API key GonkaRouter pakai wallet |
+| 5 | Parallel farm | Jalanin beberapa farm di background |
+| 6 | Delay setting | Jeda antar akun, dalam detik |
+| 7 | Setup Proxy | Atur daftar proxy |
+| 8 | Setup Bot Tele | Isi token bot dan chat ID Telegram |
+| 9 | Uninstall | Hapus semua sampai bersih |
 | 0 | Exit | Keluar |
 
-Tiap submenu farm berisi: Run farm (foreground atau background), Results (lihat, salin, hapus), dan Auto inject 9Router (ON/OFF).
+Tiap submenu farm isinya: Run farm (foreground atau background), Results (lihat/salin/hapus key), sama Auto inject 9Router (ON/OFF).
 
-## Konfigurasi
+## Setting
 
 ### Proxy
 
-Satu proxy per baris di `tools/proxies.txt` dengan format:
+Satu proxy per baris di `tools/proxies.txt`:
 
 ```
 user:pass@host:port
 ```
 
-Tanda `@` sebelum host bersifat wajib. Format `user:pass:host:port` (tanpa `@`) akan membuat koneksi proxy gagal. Berkas ini tidak ikut ke repo karena berisi kredensial.
+Tanda `@` sebelum host itu wajib. Kalau nulisnya `user:pass:host:port` (pakai titik dua), koneksi proxy bakal gagal. File ini tidak ikut ke repo karena isinya kredensial.
 
-### Surel sekali pakai
+### Email sekali pakai (TokenHarbor)
 
-Tersedia di submenu TokenHarbor. Dua opsi:
+Ada di submenu TokenHarbor. Dua pilihan:
 
-1. Tempik: instansi Tempik milik sendiri. Masukkan base URL-nya, contoh `https://tempik.domainanda.com`.
-2. Temp Mail: memakai tempmail.lol tanpa setup apa pun (bawaan). Perlu dicatat pengiriman surel verifikasi ke domain temp mail kadang tidak konsisten. Bila kode verifikasi tidak kunjung masuk, gunakan Tempik.
+1. Tempik: pakai instansi Tempik sendiri. Tinggal masukin base URL-nya, misal `https://tempik.domainlo.com`.
+2. Temp Mail: pakai tempmail.lol, langsung jalan tanpa setting. Tapi kadang email verifikasinya tidak masuk. Kalau begitu, pakai Tempik saja.
 
-### Capsolver
+### Capsolver (TokenHarbor)
 
-Opsional, tersedia di submenu TokenHarbor. Farm tetap berjalan normal tanpanya karena signup memakai browser Chromium asli sehingga Turnstile terverifikasi secara native. Kunci API disimpan di `tools/.capsolver_key` dan tidak ikut ke repo.
+Opsional. Ada saklar ON/OFF. Tanpa capsolver pun tidak masalah karena signup pakai browser Chromium beneran, jadi Turnstile keverifikasi otomatis. Key-nya disimpan di `tools/.capsolver_key`, tidak ikut ke repo.
 
 ### Bot Telegram
 
-Isi Bot Token (dari BotFather) dan Chat ID pada menu `[8]`. Setiap farm selesai akan mengirim ringkasan beserta daftar API key ke Telegram. Untuk batch besar, progres dikirim setiap 30 key baru.
+Isi Bot Token (bikin di BotFather) dan Chat ID di menu `[8]`. Tiap farm selesai bakal kirim ringkasan + daftar API key ke Telegram. Kalau batch gede, progres dikirim tiap ada 30 key baru.
 
-## Integrasi 9Router
+## Cara kerja inject 9Router
 
-Bila diaktifkan, key hasil farm otomatis masuk ke SQLite 9Router di `/var/lib/9router/db/data.sqlite`:
+Kalau dinyalain, key hasil farm otomatis masuk ke SQLite 9Router di `/var/lib/9router/db/data.sqlite`:
 
-1. Node dicari berdasarkan baseUrl, bukan nama. Node yang sudah ada dipakai ulang sehingga tidak terjadi duplikat.
+1. Node dicari pakai baseUrl, bukan nama. Jadi kalau node sudah ada, dipakai ulang, tidak bikin baru.
 2. Prefix bawaan: `HrbrFarm` (TokenHarbor), `mstrlfarm` (Mistral), `DahlFarm` (Dahl), `gofarm` (GonkaRouter).
-3. Key yang sudah tercatat dilewati. Menjalankan ulang bersifat idempoten dan aman.
+3. Key yang sudah ada dilewati. Dijalanin berkali-kali pun aman.
 
-## Lokasi berkas hasil
+## File hasil
 
-| Penyedia | Berkas |
+| Provider | Lokasi |
 |---|---|
 | TokenHarbor | `account.json` di folder repo |
 | Mistral | `/root/mistral_keys.txt` |
 | Dahl | `/root/dahl_keys.txt` |
 | GonkaRouter | `/root/gonka_keys.txt` |
 
-Berkas kredensial dan proxy tidak di commit ke repo.
+File kredensial dan proxy tidak diikutkan ke repo.
 
-## Catatan Termux (Android)
+## Di Termux (Android)
 
 ```bash
 pkg update -y && pkg install -y python git curl
@@ -162,23 +153,23 @@ python -m venv .venv
 .venv/bin/pip install requests rich
 ```
 
-Chromium Playwright tidak berjalan di Android, sehingga Farm TokenHarbor (yang butuh browser) tidak dapat dipakai di Termux. Gunakan VPS untuk itu. Farm Mistral, Dahl, dan GonkaRouter yang murni HTTP berjalan normal di Termux.
+Chromium tidak jalan di Android, jadi Farm TokenHarbor yang butuh browser tidak bisa dipakai di Termux. Pakai VPS buat itu. Farm Mistral, Dahl, dan GonkaRouter yang murni HTTP jalan normal di Termux.
 
-## Pemecahan masalah
+## Kalau ada masalah
 
-**Perintah `farm` tidak ditemukan.** Pemasang menaruhnya di `~/.local/bin`. Tambahkan ke PATH:
+**`farm: command not found`.** Installer naruhnya di `~/.local/bin`. Tambahin ke PATH:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-**`ERR_PROXY_CONNECTION_FAILED`.** Periksa format proxy: harus `user:pass@host:port` dengan `@` sebelum host.
+**`ERR_PROXY_CONNECTION_FAILED`.** Cek format proxy, harus `user:pass@host:port` pakai `@`.
 
-**Pesan "You're doing that a bit fast".** Ini batas laju signup TokenHarbor di sisi server, bukan dari IP atau surel. Hentikan total beberapa jam, lalu coba satu akun dengan jeda panjang.
+**Muncul "You're doing that a bit fast".** Ini limit dari server TokenHarbor, bukan dari IP atau email. Berhenti dulu beberapa jam, terus coba 1 akun aja dengan jeda panjang.
 
-**Surel verifikasi tidak masuk (Temp Mail).** Beralih ke Tempik (instansi sendiri) yang pengirimannya lebih konsisten.
+**Email verifikasi tidak masuk (Temp Mail).** Ganti ke Tempik.
 
-**GonkaRouter sering 401 setelah timeout.** Nonce SIWE hanya sekali pakai. Versi terbaru mengambil nonce baru pada tiap percobaan ulang. Perbarui via `git pull`.
+**GonkaRouter sering 401 habis timeout.** Nonce SIWE cuma sekali pakai. Versi terbaru sudah ambil nonce baru tiap retry. Update pakai `git pull`.
 
 ## Lisensi
 
