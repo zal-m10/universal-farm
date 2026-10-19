@@ -33,7 +33,7 @@ Farming API key dari 4 provider AI via cli terminal. Key otomatis masuk 9Router,
 
 API key gratis dari provider AI itu kepake banget buat coding, tapi bikin akun satu satu itu capek. Tool ini otomatisin semuanya: bikin akun, ambil key, masukin ke 9Router, kirim laporan ke Telegram. Tinggal pilih menu, tunggu, beres.
 
-## Provider
+## Providers
 
 | Provider | Work Flow | From Farm |
 |---|---|---|
