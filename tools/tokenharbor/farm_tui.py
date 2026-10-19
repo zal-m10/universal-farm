@@ -252,7 +252,7 @@ GONKA_BANNER = r"""
 ╚██████╔╝╚██████╔╝██║ ╚████║██║  ██╗██║  ██║
  ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝
 [/bold white]
-[bold white]              GonkaRouter Farm Auto CLI — SIWE Mode • $20/account[/bold white]
+[bold white]GonkaRouter Farm Auto CLI — SIWE Mode • $20/account[/bold white]
 """
 
 
