@@ -31,6 +31,14 @@ Script installer akan: install paket sistem (python3, git, curl), clone repo ke 
 
 Setelah selesai, ketik `farm` untuk membuka menu.
 
+## Uninstall (one-line)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zal-m10/universal-farm/main/uninstall.sh | bash
+```
+
+Menghapus `~/universal-farm`, perintah `farm`, semua hasil farm (keys, progress, state), dan log sementara. 9Router tidak ikut dihapus.
+
 ## Instalasi manual
 
 ```bash
