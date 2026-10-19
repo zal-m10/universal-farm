@@ -35,7 +35,7 @@ API key gratis dari provider AI itu kepake banget buat coding, tapi bikin akun s
 
 ## Provider
 
-| Provider | Cara kerja | Dapat apa per akun |
+| Provider | Work Flow | From Farm |
 |---|---|---|
 | TokenHarbor | Browser Chromium | Akses model gratis |
 | Mistral AI | Pure HTTP | Free From Mistral |
