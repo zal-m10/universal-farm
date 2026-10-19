@@ -244,20 +244,20 @@ def _dahl_header():
 
 
 GONKA_BANNER = r"""
-[bold cyan]
+[bold white]
  ██████╗  ██████╗ ███╗   ██╗██╗  ██╗ █████╗
 ██╔════╝ ██╔═══██╗████╗  ██║██║ ██╔╝██╔══██╗
 ██║  ███╗██║   ██║██╔██╗ ██║█████╔╝ ███████║
 ██║   ██║██║   ██║██║╚██╗██║██╔═██╗ ██╔══██║
 ╚██████╔╝╚██████╔╝██║ ╚████║██║  ██╗██║  ██║
  ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝
-[/bold cyan]
-[bold bright_cyan]              GonkaRouter Farm Auto CLI — SIWE Mode • $20/account[/bold bright_cyan]
+[/bold white]
+[bold white]              GonkaRouter Farm Auto CLI — SIWE Mode • $20/account[/bold white]
 """
 
 
 def _gonka_header():
-    console.print(GONKA_BANNER)
+    console.print(GONKA_BANNER, justify="center")
 
 
 def _harbor_header():
@@ -1948,7 +1948,7 @@ def menu_gonka():
                       justify="center")
 
         menu = Table(show_header=False, box=None, padding=(0, 2))
-        menu.add_column("key", style="bold bright_green", width=5, justify="right")
+        menu.add_column("key", style="bold white", width=5, justify="right")
         menu.add_column("label", style="white")
         menu.add_column("hint", style="dim")
         menu.add_row("[1]", "Run farm", "farm GonkaRouter API keys ($20/account)")
