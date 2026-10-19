@@ -6,7 +6,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Platform](https://img.shields.io/badge/platform-linux%20%7C%20termux-lightgrey.svg)]()
 
-Farming API key dari 4 provider AI langsung dari terminal. Key otomatis masuk 9Router, laporan dikirim ke Telegram.
+Farming API key dari 4 provider AI via cli terminal. Key otomatis masuk 9Router, laporan dikirim ke Telegram.
 
 ![Menu utama](assets/menu-utama.jpg)
 
