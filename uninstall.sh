@@ -39,7 +39,12 @@ echo "  - farm command (/usr/local/bin/farm or ~/.local/bin/farm)"
 echo "  - All farmed keys, progress files, and Telegram/bot state"
 echo ""
 printf "Type DELETE to confirm: "
-read -r CONFIRM
+# Read from /dev/tty so it works when piped via curl | bash.
+if [ -c /dev/tty ]; then
+    read -r CONFIRM </dev/tty
+else
+    read -r CONFIRM
+fi
 if [ "$CONFIRM" != "DELETE" ]; then
     echo "Cancelled."
     exit 0
