@@ -1089,12 +1089,13 @@ def menu_mistral_run_farm():
     proxies = _get_proxies()
     if not proxies:
         console.print("[yellow]⚠ No proxy configured.[/yellow]")
-        console.print("Set proxies via main menu [magenta]Setup Proxy[/magenta].")
-        Prompt.ask("\nPress Enter to continue", default="")
-        return
+        if not Confirm.ask("Run without proxy?", default=True):
+            console.print("Cancelled. Set proxies via main menu [magenta]Setup Proxy[/magenta].")
+            Prompt.ask("\nPress Enter to continue", default="")
+            return
 
     count = IntPrompt.ask("\nHow many keys to farm?", default=1)
-    console.print(f"\n[dim]Proxy: {len(proxies)} (rotating)[/dim]")
+    console.print(f"\n[dim]Proxy: {len(proxies)} (rotating)[/dim]" if proxies else "\n[dim]Proxy: none (direct)[/dim]")
     console.print(f"[dim]Script: {_mistral_script}[/dim]\n")
 
     if not Confirm.ask(f"Start farming {count} Mistral key(s)?", default=True):
