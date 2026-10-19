@@ -55,13 +55,14 @@ Abis itu ketik `farm`, pilih provider, masukin jumlah farm, lets farm.
 | Fitur | Keterangan |
 |---|---|
 | Menu interaktif | Tinggal pilih nomor di terminal |
-| Auto inject 9Router | Key otomatis masuk database 9Router, tidak bikin duplikat |
+| Auto inject 9Router | Key otomatis masuk 9router |
 | Notifikasi Telegram | Ringkasan + daftar key tiap farm selesai |
 | Progres batch | Tiap 30 key baru langsung dikirim ke Telegram |
 | Rotasi proxy | Ganti tiap akun, format `user:pass@host:port` |
-| Email sekali pakai | Tempik (sendiri) atau Temp Mail (langsung jalan) |
-| Capsolver opsional | Ada saklar ON/OFF, tanpa capsolver pun jalan |
-| Parallel farm | Semua provider jalan bareng di background, aman kalau SSH putus |
+| Email use | Tempik or Temp Mail |
+| Capsolver opsional | ON/OF mode |
+| Parallel farm | Farm multi providers |
+| Background farm | Farming nya nggak usah di tungguin |
 
 ## Screenshot
 
