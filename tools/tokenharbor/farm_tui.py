@@ -2437,6 +2437,13 @@ def _notify_farm_done(provider: str, total: int, success: int, failed: int,
     inject_on = state.get(_INJECT_STATE_KEYS.get(provider, ""), False)
     inject_txt = "ON✓" if inject_on else "OFF<b>✗</b>"
 
+    # Base URLs for the notification.
+    _base_urls = {
+        "TokenHarbor": "https://tokenharbor.ai/v1",
+        "GonkaRouter": "https://api.gonkarouter.io/v1",
+    }
+    base_url = _base_urls.get(provider, "")
+
     title = f"✓Farm Selesai — {provider}" if not progress else f"Farm Progress — {provider} ({progress})"
     text = (
         f"{title}\n"
@@ -2448,6 +2455,8 @@ def _notify_farm_done(provider: str, total: int, success: int, failed: int,
         # Code block -> Telegram shows COPY CODE button.
         escaped = "\n".join(_html.escape(k) for k in keys)
         text += f"<pre>{escaped}</pre>\n"
+    if base_url:
+        text += f"\nBase URL: <code>{_html.escape(base_url)}</code>"
     text += f"\nAuto inject 9Router: <b>{inject_txt}</b>"
     text += f"\nProxy: {_proxy_summary()}"
     ok, msg = _send_telegram(text)
