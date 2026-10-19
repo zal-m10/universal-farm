@@ -50,9 +50,9 @@ curl -fsSL https://raw.githubusercontent.com/zal-m10/universal-farm/main/install
 
 Abis itu ketik `farm`, pilih provider, masukin jumlah farm, lets farm.
 
-## Fitur
+## Features
 
-| Fitur | Keterangan |
+| Features| Informations |
 |---|---|
 | Menu interaktif | Tinggal pilih nomor di terminal |
 | Auto inject 9Router | Key otomatis masuk 9router |
