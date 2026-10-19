@@ -79,29 +79,21 @@ def load_proxies():
     return []
 
 
-def farm_one(session, idx):
-    # 1. Generate fresh wallet
-    acct = Account.create()
-    addr = acct.address
-    priv = acct.key.hex()
-    log(f"=== account #{idx} : {addr} ===")
-
-    # 2. Get nonce
-    nonce = None
+def _get_nonce(session, addr):
+    """Get a fresh nonce for the address."""
     for attempt in range(3):
         try:
-            r = session.get(f"{BASE}/auth/nonce?address={addr}", timeout=20)
+            r = session.get(f"{BASE}/auth/nonce?address={addr}", timeout=30)
             if r.status_code == 200:
-                nonce = r.json().get("nonce")
-                break
+                return r.json().get("nonce")
         except Exception as e:
             log(f"  nonce error: {e}")
         time.sleep(5)
-    if not nonce:
-        log("  nonce failed")
-        return None
+    return None
 
-    # 3. Sign SIWE message
+
+def _sign_siwe(addr, priv, nonce):
+    """Build and sign a fresh SIWE message."""
     issued = datetime.datetime.now(datetime.timezone.utc).strftime(
         "%Y-%m-%dT%H:%M:%S.000Z")
     message = (
@@ -116,23 +108,38 @@ def farm_one(session, idx):
     )
     signable = encode_defunct(text=message)
     sig = Account.sign_message(signable, priv).signature.hex()
+    return message, sig
 
-    # 4. Login
+
+def farm_one(session, idx):
+    # 1. Generate fresh wallet
+    acct = Account.create()
+    addr = acct.address
+    priv = acct.key.hex()
+    log(f"=== account #{idx} : {addr} ===")
+
+    # 2-4. Nonce + sign + login, with fresh nonce per retry
+    # (nonce is single-use; a timed-out attempt may have consumed it)
     token = None
     user_id = None
     for attempt in range(3):
+        nonce = _get_nonce(session, addr)
+        if not nonce:
+            log("  nonce failed")
+            continue
+        message, sig = _sign_siwe(addr, priv, nonce)
         try:
             r = session.post(
                 f"{BASE}/auth/login",
                 json={"address": addr, "channel": "gonka",
                       "message": message, "signature": sig},
-                timeout=20)
+                timeout=30)
             if r.status_code == 200:
                 body = r.json()
                 token = body.get("token")
                 user_id = body.get("user", {}).get("id")
                 break
-            log(f"  login attempt {attempt+1}: {r.status_code}")
+            log(f"  login attempt {attempt+1}: {r.status_code} {r.text[:80]}")
         except Exception as e:
             log(f"  login error: {e}")
         time.sleep(5)
@@ -149,7 +156,7 @@ def farm_one(session, idx):
     full_key = None
     for attempt in range(5):
         try:
-            r = session.get(f"{BASE}/api/keys", headers=auth_h, timeout=20)
+            r = session.get(f"{BASE}/api/keys", headers=auth_h, timeout=30)
             if r.status_code == 200:
                 keys = r.json().get("items", [])
                 if keys:
@@ -164,7 +171,7 @@ def farm_one(session, idx):
         for attempt in range(5):
             try:
                 r = session.post(f"{BASE}/api/keys/{key_id}/reveal",
-                                 headers=auth_h, timeout=20)
+                                 headers=auth_h, timeout=30)
                 if r.status_code == 200:
                     full_key = r.json().get("key")
                     break
@@ -180,7 +187,7 @@ def farm_one(session, idx):
     try:
         r = session.get(f"{BASE}/api/me",
                         headers={"Authorization": f"Bearer {token}"},
-                        timeout=20)
+                        timeout=30)
         if r.status_code == 200:
             bal = r.json().get("balance") or {}
             balance = bal.get("USDT", "?")
@@ -192,7 +199,7 @@ def farm_one(session, idx):
     try:
         r = session.get(f"{BASE}/v1/models",
                         headers={"Authorization": f"Bearer {full_key}"},
-                        timeout=20)
+                        timeout=30)
         if r.status_code != 200:
             log(f"  verify failed ({r.status_code})")
             return None
