@@ -49,7 +49,7 @@ echo "[3/5] Setting up Python environment..."
 PYBIN="$(command -v python3.11 || command -v python3)"
 "$PYBIN" -m venv .venv
 .venv/bin/pip install -q --upgrade pip
-.venv/bin/pip install -q playwright requests rich
+.venv/bin/pip install -q playwright requests rich eth-account
 
 # 4. Chromium for Playwright (needed by TokenHarbor browser farm).
 echo "[4/5] Installing Chromium..."
@@ -99,10 +99,12 @@ OK=1
 for f in "tools/tokenharbor/farm_tui.py" \
          "tools/tokenharbor/cli.py" \
          "tools/tokenharbor/dahl_farm.py" \
+         "tools/tokenharbor/gonka_farm.py" \
          "tools/tokenharbor/example.config.toml" \
          "tools/tokenharbor/monitors/tokenharbor_inject_monitor.py" \
          "tools/tokenharbor/monitors/mistral_inject_monitor.py" \
-         "tools/tokenharbor/monitors/dahl_inject_monitor.py"; do
+         "tools/tokenharbor/monitors/dahl_inject_monitor.py" \
+         "tools/tokenharbor/monitors/gonka_inject_monitor.py"; do
     if [ -f "$INSTALL_DIR/$f" ]; then
         echo "  ✓ $f"
     else

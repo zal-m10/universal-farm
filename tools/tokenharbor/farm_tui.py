@@ -32,6 +32,8 @@ MISTRAL_SCRIPT = Path("/root/mistral_farm.py")
 MISTRAL_KEYS = Path("/root/mistral_keys.txt")
 DAHL_SCRIPT = Path("/root/dahl_farm.py")
 DAHL_KEYS = Path("/root/dahl_keys.txt")
+GONKA_SCRIPT = Path("/root/gonka_farm.py")
+GONKA_KEYS = Path("/root/gonka_keys.txt")
 
 def _resolve_script(path: Path, repo_fallback: str) -> Path:
     """Return path if it exists, else repo fallback if that exists."""
@@ -239,6 +241,23 @@ DAHL_BANNER = r"""
 
 def _dahl_header():
     console.print(DAHL_BANNER)
+
+
+GONKA_BANNER = r"""
+[bold cyan]
+ ██████╗  ██████╗ ███╗   ██╗██╗  ██╗ █████╗
+██╔════╝ ██╔═══██╗████╗  ██║██║ ██╔╝██╔══██╗
+██║  ███╗██║   ██║██╔██╗ ██║█████╔╝ ███████║
+██║   ██║██║   ██║██║╚██╗██║██╔═██╗ ██╔══██║
+╚██████╔╝╚██████╔╝██║ ╚████║██║  ██╗██║  ██║
+ ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝
+[/bold cyan]
+[bold bright_cyan]              GonkaRouter Farm Auto CLI — SIWE Mode • $20/account[/bold bright_cyan]
+"""
+
+
+def _gonka_header():
+    console.print(GONKA_BANNER)
 
 
 def _harbor_header():
@@ -1627,6 +1646,330 @@ def menu_dahl():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# GonkaRouter
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _get_gonka_keys() -> list:
+    """Parse /root/gonka_keys.txt -> list of dicts."""
+    if not GONKA_KEYS.exists():
+        return []
+    out = []
+    for line in GONKA_KEYS.read_text().splitlines():
+        parts = line.strip().split("|")
+        if len(parts) < 4:
+            continue
+        out.append({
+            "address": parts[0],
+            "user_id": parts[1],
+            "status": parts[2],
+            "api_key": parts[3],
+            "ok": parts[2] == "ok",
+        })
+    return out
+
+
+def _count_gonka_running() -> int:
+    count = 0
+    try:
+        for proc in Path("/proc").iterdir():
+            if not proc.name.isdigit():
+                continue
+            try:
+                cmd = (proc / "cmdline").read_text()
+                if "gonka_farm.py" in cmd and "inject_monitor" not in cmd:
+                    count += 1
+            except OSError:
+                pass
+    except OSError:
+        pass
+    return count
+
+
+def _inject_gonka_to_9router() -> tuple:
+    """Inject GonkaRouter keys into 9Router custom node. Returns (added, skipped, error)."""
+    import sqlite3, uuid
+    from datetime import datetime, timezone
+    DB = '/var/lib/9router/db/data.sqlite'
+    PREFIX = 'gofarm'
+    BASE_URL = 'https://api.gonkarouter.io/v1'
+    NODE_NAME = 'gonkarouter'
+
+    def now():
+        return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z')
+
+    try:
+        conn = sqlite3.connect(DB)
+    except Exception as e:
+        return 0, 0, f"DB open failed: {e}"
+
+    try:
+        # Find existing node by baseUrl (reuse user's node regardless of prefix).
+        node_id = None
+        prefix = PREFIX
+        try:
+            row = conn.execute(
+                "SELECT id, data FROM providerNodes WHERE json_extract(data, '$.baseUrl') = ?",
+                (BASE_URL,)).fetchone()
+        except Exception:
+            row = None
+        if row:
+            node_id = row[0]
+            try:
+                prefix = (json.loads(row[1]) or {}).get('prefix') or PREFIX
+            except Exception:
+                pass
+        if not node_id:
+            node_id = f'openai-compatible-chat-{uuid.uuid4()}'
+            data = json.dumps({'prefix': PREFIX, 'apiType': 'chat', 'baseUrl': BASE_URL, 'nodeName': NODE_NAME})
+            conn.execute('INSERT INTO providerNodes (id,type,name,data,createdAt,updatedAt) VALUES (?,?,?,?,?,?)',
+                         (node_id, 'openai-compatible', NODE_NAME, data, now(), now()))
+            conn.commit()
+
+        have = set()
+        try:
+            for (raw,) in conn.execute('SELECT data FROM providerConnections WHERE provider=?', (node_id,)):
+                try:
+                    k = (json.loads(raw) or {}).get('apiKey')
+                    if k:
+                        have.add(k)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        added = skipped = 0
+        for k in _get_gonka_keys():
+            key, address = k["api_key"], k["address"]
+            if not key or not k["ok"]:
+                continue
+            if key in have:
+                skipped += 1
+                continue
+            n = conn.execute('SELECT COUNT(*) FROM providerConnections WHERE provider=?', (node_id,)).fetchone()[0] + 1
+            data = json.dumps({
+                'apiKey': key, 'authType': 'apikey', 'testStatus': 'active', 'backoffLevel': 0,
+                'providerSpecificData': {'prefix': prefix, 'apiType': 'chat', 'baseUrl': BASE_URL,
+                                          'nodeName': NODE_NAME, 'label': address},
+            })
+            conn.execute('INSERT INTO providerConnections (id,provider,authType,name,email,priority,isActive,data,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                         (str(uuid.uuid4()), node_id, 'apikey', f'Key {n}', None, 1, 1, data, now(), now()))
+            conn.commit()
+            have.add(key)
+            added += 1
+        conn.close()
+        return added, skipped, None
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return 0, 0, str(e)
+
+
+def menu_gonka_run_farm():
+    _clear_screen(); _gonka_header()
+    console.print()
+    _gonka_script = _resolve_script(GONKA_SCRIPT, "tools/tokenharbor/gonka_farm.py")
+    if not _gonka_script.exists():
+        console.print(f"[red]✗ GonkaRouter farm script not found: {GONKA_SCRIPT}[/red]")
+        Prompt.ask("\nPress Enter to continue", default="")
+        return
+
+    count = IntPrompt.ask("\nHow many keys to farm?", default=1)
+    console.print(f"\n[dim]Script: {_gonka_script}[/dim]")
+    console.print("[dim]Pure HTTP SIWE — no browser, no email, no captcha. $20/account.[/dim]\n")
+
+    if not Confirm.ask(f"Start farming {count} GonkaRouter key(s)?", default=True):
+        return
+
+    # Snapshot existing keys BEFORE the run (for per-run notification).
+    _before_keys_gonka = set(
+        k.get("api_key") for k in _get_gonka_keys() if k.get("api_key")
+    )
+
+    console.print()
+    console.print("[1] Run in foreground (watch live)")
+    console.print("[2] Run in background (survives disconnect)")
+    bg_choice = Prompt.ask("Mode", choices=["1", "2"], default="1",
+                           show_choices=False)
+
+    cmd = [sys.executable, str(_gonka_script), "--count", str(count)]
+    if bg_choice == "2":
+        import datetime as _dt
+        ts = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+        logfile = f"/tmp/gonka-farm-{ts}.log"
+        farm_pid = _spawn_detached(cmd, logfile)
+        console.print(f"[green]✓ GonkaRouter farm started in background (PID {farm_pid}).[/green]")
+        console.print(f"[dim]Log: {logfile}[/dim]")
+        # Arm monitor if auto-inject ON or Telegram configured.
+        state = _load_state()
+        if _should_arm_monitor(state, "gonka_auto_inject"):
+            _arm_inject_monitor(str(_monitor_path("gonka")), farm_pid, ts, "gonka",
+                                count, sorted(_before_keys_gonka))
+    else:
+        try:
+            subprocess.run(cmd)
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Interrupted.[/yellow]")
+        # Auto-inject to 9Router if enabled.
+        state = _load_state()
+        if state.get("gonka_auto_inject", False):
+            console.print("\n[dim]Auto-injecting to 9Router...[/dim]")
+            added, skipped, err = _inject_gonka_to_9router()
+            if err:
+                console.print(f"[red]Inject failed: {err}[/red]")
+            else:
+                console.print(f"[green]✓ Injected: {added} new, {skipped} already there.[/green]")
+        # Telegram notification — only keys from THIS run.
+        try:
+            keys = _get_gonka_keys()
+            new_keys = [
+                k["api_key"] for k in keys
+                if k.get("ok") and k.get("api_key")
+                and k["api_key"] not in _before_keys_gonka
+            ]
+            success = min(len(new_keys), count)
+            _notify_farm_done("GonkaRouter", count, success, count - success,
+                              new_keys[:count])
+        except Exception:
+            pass
+    Prompt.ask("\nPress Enter to continue", default="")
+
+
+def menu_gonka_results():
+    _clear_screen(); _gonka_header()
+    console.print()
+    keys = _get_gonka_keys()
+    ok = [k for k in keys if k["ok"]]
+    running = _count_gonka_running()
+
+    console.print(f"[bold]Running: [green]{running}[/green] | "
+                  f"[green]Success: {len(ok)}[/green] | "
+                  f"[dim]Total: {len(keys)}[/dim][/bold]\n",
+                  justify="center")
+    if ok:
+        t = Table(title="GonkaRouter API keys", show_lines=True)
+        t.add_column("#", style="dim", width=3)
+        t.add_column("Address", style="cyan")
+        t.add_column("API key", style="green")
+        for i, k in enumerate(ok, 1):
+            t.add_row(str(i), k["address"][:18] + "...", k["api_key"])
+        console.print(t)
+    elif not keys and running == 0:
+        console.print("[dim]No results yet. Run farm first.[/dim]")
+
+    from rich.text import Text as _Text
+    console.print()
+    bar = _Text()
+    if ok:
+        bar.append("[c] ", style="bold green")
+        bar.append("Copy all API  ")
+        bar.append("[d] ", style="bold green")
+        bar.append("Delete all results  ")
+    bar.append("[Enter] ", style="bold green")
+    bar.append("Back")
+    console.print(bar)
+    choices = ["c", "d", ""] if ok else [""]
+    action = Prompt.ask("Action", choices=choices, default="", show_choices=False)
+    if action == "c" and ok:
+        text = "\n".join(k["api_key"] for k in ok)
+        kf = Path("/root/gonka_keys_export.txt")
+        kf.write_text(text + "\n")
+        console.print(f"[green]✓ {len(ok)} keys saved to {kf}[/green]")
+        for k in ok:
+            console.print(f"  {k['api_key']}")
+        Prompt.ask("\nPress Enter to continue", default="")
+    elif action == "d" and ok:
+        if Confirm.ask("\n[red]Delete ALL GonkaRouter results?[/red]", default=False):
+            GONKA_KEYS.unlink(missing_ok=True)
+            kf = Path("/root/gonka_keys_export.txt")
+            kf.unlink(missing_ok=True)
+            for log in Path("/tmp").glob("gonka-farm-*.log"):
+                try:
+                    log.unlink()
+                except OSError:
+                    pass
+            console.print("[green]✓ All GonkaRouter results deleted.[/green]")
+        Prompt.ask("\nPress Enter to continue", default="")
+
+
+def menu_gonka_inject_toggle():
+    _clear_screen(); _gonka_header()
+    console.print()
+    state = _load_state()
+    current = state.get("gonka_auto_inject", False)
+    console.print(f"\nAuto inject 9Router is currently: "
+                  f"{'[green]ON[/green]' if current else '[dim]OFF[/dim]'}")
+    console.print("[dim]ON = new keys are auto-injected to 9Router (prefix gofarm).[/dim]")
+    console.print("[dim]OFF = injection disabled.[/dim]\n")
+    console.print("[1] Turn ON")
+    console.print("[2] Turn OFF")
+    console.print("[0] Back\n")
+    choice = Prompt.ask("Select", choices=["0", "1", "2"], default="0",
+                        show_choices=False)
+    if choice == "1":
+        ok, msg = _check_9router()
+        if not ok:
+            console.print(f"\n[red]✗ {msg}[/red]")
+            Prompt.ask("\nPress Enter to continue", default="")
+            return
+        console.print(f"\n[dim]✓ {msg}[/dim]")
+        state["gonka_auto_inject"] = True
+        _save_state(state)
+        console.print("[green]✓ Auto inject 9Router: ON[/green]")
+        added, skipped, err = _inject_gonka_to_9router()
+        if err:
+            console.print(f"[red]Inject failed: {err}[/red]")
+        else:
+            console.print(f"[dim]Injected now: {added} added, {skipped} already there.[/dim]")
+    elif choice == "2":
+        state["gonka_auto_inject"] = False
+        _save_state(state)
+        console.print("\n[dim]Auto inject 9Router: OFF[/dim]")
+    Prompt.ask("\nPress Enter to continue", default="")
+
+
+def menu_gonka():
+    """GonkaRouter farm submenu."""
+    while True:
+        _clear_screen()
+        _gonka_header()
+        console.print()
+        running = _count_gonka_running()
+        keys = _get_gonka_keys()
+        ok = len([k for k in keys if k["ok"]])
+        state = _load_state()
+        inject_on = state.get("gonka_auto_inject", False)
+        inject_txt = "[green]ON[/green]" if inject_on else "[dim]OFF[/dim]"
+
+        console.print(f"[dim]running:[/dim] [green]{running}[/green]   "
+                      f"[dim]keys:[/dim] [green]{ok}[/green]   "
+                      f"[dim]auto-inject:[/dim] {inject_txt}\n",
+                      justify="center")
+
+        menu = Table(show_header=False, box=None, padding=(0, 2))
+        menu.add_column("key", style="bold bright_green", width=5, justify="right")
+        menu.add_column("label", style="white")
+        menu.add_column("hint", style="dim")
+        menu.add_row("[1]", "Run farm", "farm GonkaRouter API keys ($20/account)")
+        menu.add_row("[2]", "Results", f"{ok} keys farmed")
+        menu.add_row("[3]", "Auto inject 9Router", f"currently {('ON' if inject_on else 'OFF')}")
+        menu.add_row("[0]", "Back", "")
+        console.print(menu, justify="center")
+        console.print()
+        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3"],
+                            default="1", show_choices=False, show_default=False)
+        if choice == "1":
+            menu_gonka_run_farm()
+        elif choice == "2":
+            menu_gonka_results()
+        elif choice == "3":
+            menu_gonka_inject_toggle()
+        else:
+            return
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Parallel farm
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1717,7 +2060,7 @@ def _get_running_farms() -> list:
             running.append(("TokenHarbor", pid, str(logs[0]) if logs else "-"))
         except (ValueError, OSError):
             pass
-    # Mistral + Dahl: scan /proc.
+    # Mistral + Dahl + GonkaRouter: scan /proc.
     for proc in Path("/proc").iterdir():
         if not proc.name.isdigit():
             continue
@@ -1729,6 +2072,9 @@ def _get_running_farms() -> list:
             elif "mistral_farm.py" in cmd and "inject_monitor" not in cmd:
                 logs = sorted(Path("/tmp").glob("mistral-farm-*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
                 running.append(("Mistral", int(proc.name), str(logs[0]) if logs else "-"))
+            elif "gonka_farm.py" in cmd and "inject_monitor" not in cmd:
+                logs = sorted(Path("/tmp").glob("gonka-farm-*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
+                running.append(("GonkaRouter", int(proc.name), str(logs[0]) if logs else "-"))
         except OSError:
             pass
     return running
@@ -1797,7 +2143,7 @@ def menu_parallel_farm():
     # Step 1: select which farms to run (arrow keys + space).
     chosen = _curses_multiselect(
         "Select APIs to farm (↑↓ navigate, SPACE toggle, ENTER done, q cancel)",
-        ["TokenHarbor", "Mistral", "Dahl"],
+        ["TokenHarbor", "Mistral", "Dahl", "GonkaRouter"],
     )
     if chosen is None:
         return  # cancelled with q
@@ -1806,7 +2152,7 @@ def menu_parallel_farm():
         Prompt.ask("\nPress Enter to continue", default="")
         return
     selected = [(str(i + 1), name) for i, name in enumerate(
-        ["TokenHarbor", "Mistral", "Dahl"]) if name in chosen]
+        ["TokenHarbor", "Mistral", "Dahl", "GonkaRouter"]) if name in chosen]
 
     # Validate prerequisites per selected farm.
     state = _load_state()
@@ -1829,6 +2175,10 @@ def menu_parallel_farm():
         _ds = _resolve_script(DAHL_SCRIPT, "tools/tokenharbor/dahl_farm.py")
         if not _ds.exists():
             problems.append(f"Dahl script not found: {DAHL_SCRIPT}")
+    if any(name == "GonkaRouter" for _, name in selected):
+        _gs = _resolve_script(GONKA_SCRIPT, "tools/tokenharbor/gonka_farm.py")
+        if not _gs.exists():
+            problems.append(f"GonkaRouter script not found: {GONKA_SCRIPT}")
     if problems:
         for p in problems:
             console.print(f"[red]✗ {p}[/red]")
@@ -1868,6 +2218,9 @@ def menu_parallel_farm():
     if "Dahl" in counts:
         _p_before["Dahl"] = sorted(
             k.get("api_key") for k in _get_dahl_keys() if k.get("api_key"))
+    if "GonkaRouter" in counts:
+        _p_before["GonkaRouter"] = sorted(
+            k.get("api_key") for k in _get_gonka_keys() if k.get("api_key"))
 
     import datetime as _dt
     ts = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -1901,6 +2254,15 @@ def menu_parallel_farm():
         dahl_pid = _spawn_detached(dahl_cmd, dahl_log)
         procs["Dahl"] = (dahl_pid, dahl_log)
 
+    # GonkaRouter farm
+    if "GonkaRouter" in counts:
+        _gs = _resolve_script(GONKA_SCRIPT, "tools/tokenharbor/gonka_farm.py")
+        gonka_cmd = [sys.executable, str(_gs),
+                     "--count", str(counts["GonkaRouter"])]
+        gonka_log = f"/tmp/gonka-farm-{ts}.log"
+        gonka_pid = _spawn_detached(gonka_cmd, gonka_log)
+        procs["GonkaRouter"] = (gonka_pid, gonka_log)
+
     console.print()
     for name, (pid, log) in procs.items():
         console.print(f"[green]✓ {name} farm started (PID {pid})[/green]")
@@ -1912,6 +2274,7 @@ def menu_parallel_farm():
         "TokenHarbor": ("tokenharbor_auto_inject", str(_monitor_path("tokenharbor")), "tokenharbor"),
         "Mistral": ("mistral_auto_inject", str(_monitor_path("mistral")), "mistral"),
         "Dahl": ("dahl_auto_inject", str(_monitor_path("dahl")), "dahl"),
+        "GonkaRouter": ("gonka_auto_inject", str(_monitor_path("gonka")), "gonka"),
     }
     for name, (pid, _) in procs.items():
         inject_key, mon_path, label = _monitors[name]
@@ -2157,7 +2520,7 @@ def main():
         menu.add_column("label", style="white")
         menu.add_column("hint", style="dim")
         # Gradient numbers: sample FARM_GRADIENT across the menu items.
-        _nums = ["1", "2", "3", "4", "5", "6", "7", "0"]
+        _nums = ["1", "2", "3", "4", "5", "6", "7", "8", "0"]
         def _gnum(n):
             idx = _nums.index(n)
             t = idx / max(len(_nums) - 1, 1)
@@ -2176,14 +2539,15 @@ def main():
         menu.add_row(_gnum("1"), "Farm TokenHarbor", "TokenHarbor account farming")
         menu.add_row(_gnum("2"), "Farm Mistral keys", "Mistral API key farming")
         menu.add_row(_gnum("3"), "Farm Dahl keys", "Dahl Inference API keys")
-        menu.add_row(_gnum("4"), "Parallel farm", "run both farms in background")
-        menu.add_row(_gnum("5"), "Delay setting", f"currently {state['delay']}s")
-        menu.add_row(_gnum("6"), "Setup Proxy", f"{len(proxies)} configured" if proxies else "not configured")
-        menu.add_row(_gnum("7"), "Setup Bot Tele", "Telegram notifications")
+        menu.add_row(_gnum("4"), "Farm GonkaRouter keys", "GonkaRouter API keys ($20/account)")
+        menu.add_row(_gnum("5"), "Parallel farm", "run farms in background")
+        menu.add_row(_gnum("6"), "Delay setting", f"currently {state['delay']}s")
+        menu.add_row(_gnum("7"), "Setup Proxy", f"{len(proxies)} configured" if proxies else "not configured")
+        menu.add_row(_gnum("8"), "Setup Bot Tele", "Telegram notifications")
         menu.add_row(_gnum("0"), "Exit", "")
         console.print(menu, justify="center")
         console.print()
-        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3", "4", "5", "6", "7"],
+        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8"],
                             default="1", show_choices=False, show_default=False)
         if choice == "1":
             menu_tokenharbor()
@@ -2192,12 +2556,14 @@ def main():
         elif choice == "3":
             menu_dahl()
         elif choice == "4":
-            menu_parallel_farm()
+            menu_gonka()
         elif choice == "5":
-            menu_delay_setting()
+            menu_parallel_farm()
         elif choice == "6":
-            menu_setup_proxy()
+            menu_delay_setting()
         elif choice == "7":
+            menu_setup_proxy()
+        elif choice == "8":
             menu_setup_telegram()
         else:
             console.print("\nBye.")
