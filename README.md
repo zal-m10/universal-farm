@@ -1,10 +1,37 @@
+<div align="center">
+
 # Universal Farm
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Platform](https://img.shields.io/badge/platform-linux%20%7C%20termux-lightgrey.svg)]()
+
+Farming API key dari 4 provider AI langsung dari terminal. Key otomatis masuk 9Router, laporan dikirim ke Telegram.
 
 ![Menu utama](assets/menu-utama.jpg)
 
-Tool TUI buat farming API key dari beberapa provider AI sekaligus. Key yang didapat bisa langsung diinject ke 9Router, dan tiap farm selesai ada notifikasi ke Telegram.
+**Daftar Isi**
 
-Fork dari [hirotomasato/harbor](https://github.com/hirotomasato/harbor), tapi sudah jauh beda dari upstream.
+1. [Kenapa ada tool ini](#kenapa-ada-tool-ini)
+2. [Provider](#provider)
+3. [Mulai cepat](#mulai-cepat)
+4. [Fitur](#fitur)
+5. [Screenshot](#screenshot)
+6. [Instalasi manual](#instalasi-manual)
+7. [Menu](#menu)
+8. [Setting](#setting)
+9. [Cara kerja inject 9Router](#cara-kerja-inject-9router)
+10. [File hasil](#file-hasil)
+11. [Di Termux](#di-termux)
+12. [Kalau ada masalah](#kalau-ada-masalah)
+13. [Dibangun dengan](#dibangun-dengan)
+14. [Lisensi](#lisensi)
+
+</div>
+
+## Kenapa ada tool ini
+
+API key gratis dari provider AI itu kepake banget buat coding, tapi bikin akun satu satu itu capek. Tool ini otomatisin semuanya: bikin akun, ambil key, masukin ke 9Router, kirim laporan ke Telegram. Tinggal pilih menu, tunggu, beres.
 
 ## Provider
 
@@ -15,50 +42,35 @@ Fork dari [hirotomasato/harbor](https://github.com/hirotomasato/harbor), tapi su
 | Dahl Inference | HTTP murni, tanpa email | 100 juta token |
 | GonkaRouter | HTTP murni, login pakai wallet (SIWE) | USD 20 |
 
-## Screenshot submenu
+## Mulai cepat
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zal-m10/universal-farm/main/install.sh | bash
+```
+
+Abis itu ketik `farm`, pilih provider, masukin jumlah, jalan.
+
+## Fitur
+
+| Fitur | Keterangan |
+|---|---|
+| Menu interaktif | Tinggal pilih nomor di terminal |
+| Auto inject 9Router | Key otomatis masuk database 9Router, tidak bikin duplikat |
+| Notifikasi Telegram | Ringkasan + daftar key tiap farm selesai |
+| Progres batch | Tiap 30 key baru langsung dikirim ke Telegram |
+| Rotasi proxy | Ganti tiap akun, format `user:pass@host:port` |
+| Email sekali pakai | Tempik (sendiri) atau Temp Mail (langsung jalan) |
+| Capsolver opsional | Ada saklar ON/OFF, tanpa capsolver pun jalan |
+| Parallel farm | Semua provider jalan bareng di background, aman kalau SSH putus |
+
+## Screenshot
 
 ![Menu TokenHarbor](assets/menu-tokenharbor.jpg)
 ![Menu Mistral](assets/menu-mistral.jpg)
 ![Menu Dahl](assets/menu-dahl.jpg)
 ![Menu GonkaRouter](assets/menu-gonkarouter.jpg)
 
-## Fitur
-
-1. Menu interaktif di terminal, tinggal pilih nomor
-2. Key otomatis masuk ke database 9Router (cari node pakai baseUrl, tidak bikin duplikat, key yang sudah ada dilewati)
-3. Notifikasi Telegram tiap farm selesai: ringkasan + daftar key. Buat batch gede, progres dikirim tiap 30 key baru
-4. Proxy ganti tiap akun, format `user:pass@host:port`
-5. Buat TokenHarbor bisa pilih email sekali pakai: Tempik (punya sendiri) atau Temp Mail (tempmail.lol, langsung jalan)
-6. Capsolver opsional, ada saklar ON/OFF. Tanpa capsolver pun farm TokenHarbor tetap jalan karena pakai browser beneran
-7. Parallel farm: semua provider jalan bareng di background, aman kalau SSH putus
-
-## Install
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/zal-m10/universal-farm/main/install.sh | bash
-```
-
-Atau pakai wget:
-
-```bash
-wget -qO- https://raw.githubusercontent.com/zal-m10/universal-farm/main/install.sh | bash
-```
-
-Installer bakal urus paket sistem (python3, git, curl), clone repo ke `~/universal-farm`, bikin virtualenv + install dependency Python, install Chromium buat Playwright, terus daftarin perintah `farm`.
-
-Abis itu ketik `farm` buat buka menunya.
-
-## Uninstall
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/zal-m10/universal-farm/main/uninstall.sh | bash
-```
-
-Atau dari dalam aplikasi: menu `[9] Uninstall`.
-
-Ini bakal hapus `~/universal-farm`, perintah `farm`, semua hasil farm (key, progres, state), dan log sementara. 9Router tidak ikut kehapus.
-
-## Install manual
+## Instalasi manual
 
 ```bash
 git clone https://github.com/zal-m10/universal-farm.git
@@ -79,6 +91,14 @@ Jalankan:
 ```bash
 .venv/bin/python -m tools.tokenharbor.farm_tui
 ```
+
+## Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zal-m10/universal-farm/main/uninstall.sh | bash
+```
+
+Atau dari dalam aplikasi: menu `[9] Uninstall`. Ini bakal hapus `~/universal-farm`, perintah `farm`, semua hasil farm, dan log sementara. 9Router tidak ikut kehapus.
 
 ## Menu
 
@@ -171,6 +191,13 @@ export PATH="$HOME/.local/bin:$PATH"
 
 **GonkaRouter sering 401 habis timeout.** Nonce SIWE cuma sekali pakai. Versi terbaru sudah ambil nonce baru tiap retry. Update pakai `git pull`.
 
+## Dibangun dengan
+
+[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)]()
+[![Rich](https://img.shields.io/badge/Rich-000000?style=for-the-badge)]()
+[![Playwright](https://img.shields.io/badge/Playwright-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)]()
+[![9Router](https://img.shields.io/badge/9Router-FF6B6B?style=for-the-badge)]()
+
 ## Lisensi
 
-MIT
+MIT. Fork dari [hirotomasato/harbor](https://github.com/hirotomasato/harbor).
