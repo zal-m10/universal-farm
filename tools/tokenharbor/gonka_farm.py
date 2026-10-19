@@ -83,7 +83,7 @@ def _get_nonce(session, addr):
     """Get a fresh nonce for the address."""
     for attempt in range(3):
         try:
-            r = session.get(f"{BASE}/auth/nonce?address={addr}", timeout=30)
+            r = session.get(f"{BASE}/auth/nonce?address={addr}", timeout=60)
             if r.status_code == 200:
                 return r.json().get("nonce")
         except Exception as e:
@@ -133,7 +133,7 @@ def farm_one(session, idx):
                 f"{BASE}/auth/login",
                 json={"address": addr, "channel": "gonka",
                       "message": message, "signature": sig},
-                timeout=30)
+                timeout=60)
             if r.status_code == 200:
                 body = r.json()
                 token = body.get("token")
@@ -156,7 +156,7 @@ def farm_one(session, idx):
     full_key = None
     for attempt in range(5):
         try:
-            r = session.get(f"{BASE}/api/keys", headers=auth_h, timeout=30)
+            r = session.get(f"{BASE}/api/keys", headers=auth_h, timeout=60)
             if r.status_code == 200:
                 keys = r.json().get("items", [])
                 if keys:
@@ -171,7 +171,7 @@ def farm_one(session, idx):
         for attempt in range(5):
             try:
                 r = session.post(f"{BASE}/api/keys/{key_id}/reveal",
-                                 headers=auth_h, timeout=30)
+                                 headers=auth_h, timeout=60)
                 if r.status_code == 200:
                     full_key = r.json().get("key")
                     break
@@ -187,7 +187,7 @@ def farm_one(session, idx):
     try:
         r = session.get(f"{BASE}/api/me",
                         headers={"Authorization": f"Bearer {token}"},
-                        timeout=30)
+                        timeout=60)
         if r.status_code == 200:
             bal = r.json().get("balance") or {}
             balance = bal.get("USDT", "?")
@@ -199,7 +199,7 @@ def farm_one(session, idx):
     try:
         r = session.get(f"{BASE}/v1/models",
                         headers={"Authorization": f"Bearer {full_key}"},
-                        timeout=30)
+                        timeout=60)
         if r.status_code != 200:
             log(f"  verify failed ({r.status_code})")
             return None
