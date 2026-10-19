@@ -37,10 +37,10 @@ API key gratis dari provider AI itu kepake banget buat coding, tapi bikin akun s
 
 | Provider | Cara kerja | Dapat apa per akun |
 |---|---|---|
-| TokenHarbor | Browser Chromium asli | Akses model gratis |
-| Mistral AI | HTTP murni | Jatah gratis Mistral |
-| Dahl Inference | HTTP murni, tanpa email | 100 juta token |
-| GonkaRouter | HTTP murni, login pakai wallet (SIWE) | USD 20 |
+| TokenHarbor | Browser Chromium | Akses model gratis |
+| Mistral AI | Pure HTTP | Free From Mistral |
+| Dahl Inference | Pure HTTP | 100 juta token |
+| GonkaRouter | Pure HTTP | USD 20 |
 
 ## Auto install
 
