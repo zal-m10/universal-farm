@@ -2503,6 +2503,77 @@ def menu_setup_telegram():
     Prompt.ask("\nPress Enter to continue", default="")
 
 
+def menu_uninstall():
+    """Uninstall universal-farm: remove code, farm command, results, and state."""
+    import shutil
+    _clear_screen(); _header()
+    console.print("\n[bold red]  Uninstall Universal Farm[/bold red]\n")
+    console.print("This will [bold]DELETE[/bold]:")
+    console.print(f"  - {REPO_DIR} (all farm code)")
+    console.print("  - farm command (/usr/local/bin/farm or ~/.local/bin/farm)")
+    console.print("  - All farmed keys, progress files, and Telegram/bot state\n")
+    console.print("[dim]9Router is NOT touched.[/dim]\n")
+
+    confirm = Prompt.ask("Type [bold red]DELETE[/bold red] to confirm",
+                         default="", show_default=False)
+    if confirm != "DELETE":
+        console.print("\n[yellow]Cancelled.[/yellow]")
+        Prompt.ask("\nPress Enter to continue", default="")
+        return
+
+    console.print()
+    # 1. Kill running farms.
+    console.print("[dim]Stopping running farms...[/dim]")
+    import subprocess as _sp
+    for pat in ["dahl_farm.py", "gonka_farm.py", "mistral_farm.py",
+                "tools.tokenharbor.cli", "inject_monitor.py"]:
+        _sp.run(["pkill", "-f", pat], capture_output=True)
+    # 2. Remove farm command.
+    for bin in [Path("/usr/local/bin/farm"), Path.home() / ".local/bin/farm"]:
+        try:
+            if bin.exists() or bin.is_symlink():
+                bin.unlink()
+                console.print(f"[dim]removed {bin}[/dim]")
+        except OSError as e:
+            console.print(f"[yellow]could not remove {bin}: {e}[/yellow]")
+    # 3. Remove results, progress, state.
+    for f in [Path.home() / "dahl_keys.txt",
+              Path.home() / "mistral_keys.txt",
+              Path.home() / "gonka_keys.txt",
+              Path.home() / "dahl_keys_export.txt",
+              Path.home() / "mistral_keys_export.txt",
+              Path.home() / "gonka_keys_export.txt",
+              Path.home() / "dahl_farm_progress.txt",
+              Path.home() / "mistral_farm_progress.txt",
+              Path.home() / "gonka_farm_progress.txt",
+              Path.home() / ".farm_tui.json"]:
+        try:
+            if f.exists():
+                f.unlink()
+                console.print(f"[dim]removed {f}[/dim]")
+        except OSError:
+            pass
+    for pat in ["farm-*.log", "dahl-farm-*.log", "mistral-farm-*.log",
+                "gonka-farm-*.log", "signup-fail-*.png"]:
+        for log in Path("/tmp").glob(pat):
+            try:
+                log.unlink()
+            except OSError:
+                pass
+    try:
+        Path("/tmp/farm.pid").unlink(missing_ok=True)
+    except OSError:
+        pass
+    # 4. Remove repo dir last (we are running from it).
+    console.print(f"[dim]removing {REPO_DIR}...[/dim]")
+    console.print("\n[green]✓ Uninstall complete. Bye.[/green]")
+    try:
+        shutil.rmtree(REPO_DIR, ignore_errors=True)
+    except Exception:
+        pass
+    raise SystemExit(0)
+
+
 def main():
     while True:
         _clear_screen()
@@ -2520,7 +2591,7 @@ def main():
         menu.add_column("label", style="white")
         menu.add_column("hint", style="dim")
         # Gradient numbers: sample FARM_GRADIENT across the menu items.
-        _nums = ["1", "2", "3", "4", "5", "6", "7", "8", "0"]
+        _nums = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
         def _gnum(n):
             idx = _nums.index(n)
             t = idx / max(len(_nums) - 1, 1)
@@ -2544,10 +2615,11 @@ def main():
         menu.add_row(_gnum("6"), "Delay setting", f"currently {state['delay']}s")
         menu.add_row(_gnum("7"), "Setup Proxy", f"{len(proxies)} configured" if proxies else "not configured")
         menu.add_row(_gnum("8"), "Setup Bot Tele", "Telegram notifications")
+        menu.add_row(_gnum("9"), "Uninstall", "remove farm completely")
         menu.add_row(_gnum("0"), "Exit", "")
         console.print(menu, justify="center")
         console.print()
-        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8"],
+        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
                             default="1", show_choices=False, show_default=False)
         if choice == "1":
             menu_tokenharbor()
@@ -2565,6 +2637,8 @@ def main():
             menu_setup_proxy()
         elif choice == "8":
             menu_setup_telegram()
+        elif choice == "9":
+            menu_uninstall()
         else:
             console.print("\nBye.")
             break
