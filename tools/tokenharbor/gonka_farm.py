@@ -2,9 +2,11 @@
 """
 gonka_farm.py — Farm GonkaRouter (api.gonkarouter.io) API keys.
 
-Pure HTTP SIWE (Sign-In With Ethereum) — no browser, no email, no captcha.
+Pure HTTP SIWE (Sign-In With Ethereum) — no browser, no email.
+Since 2026-10-21 the login also requires a Cloudflare Turnstile token,
+solved via Capsolver (key in tools/.capsolver_key, same as TokenHarbor).
   GET  /auth/nonce?address=0x...     -> nonce
-  POST /auth/login {address, message, signature} -> JWT token
+  POST /auth/login {address, message, signature, turnstile_token} -> JWT token
   GET  /api/keys (Bearer JWT)        -> auto-minted key list
   POST /api/keys/{id}/reveal         -> full API key
   GET  /api/me                       -> balance check
@@ -48,6 +50,70 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
 
 KEYS_FILE = Path("/root/gonka_keys.txt")
 PROGRESS_FILE = Path("/root/gonka_farm_progress.txt")
+
+# GonkaRouter login Turnstile (sitekey from gonkarouter.io public config)
+TURNSTILE_SITEKEY = "0x4AAAAAAFcbQ4RGI69Sc6pz"
+TURNSTILE_URL = "https://gonkarouter.io/"
+CAPSOLVER_API = "https://api.capsolver.com"
+
+
+def _load_capsolver_key():
+    """Find the Capsolver key in the farm's known locations."""
+    here = Path(__file__).resolve().parent
+    candidates = [
+        here / ".capsolver_key",
+        here.parent / ".capsolver_key",
+        Path("/root/universal-farm/tools/tokenharbor/.capsolver_key"),
+        Path("/root/universal-farm/tools/.capsolver_key"),
+    ]
+    for p in candidates:
+        try:
+            if p.exists():
+                key = p.read_text().strip()
+                if key:
+                    return key
+        except OSError:
+            continue
+    return None
+
+
+def _solve_turnstile(client_key, timeout=90):
+    """Solve the GonkaRouter login Turnstile via Capsolver. Token or None."""
+    try:
+        r = requests.post(
+            f"{CAPSOLVER_API}/createTask",
+            json={"clientKey": client_key,
+                  "task": {"type": "AntiTurnstileTaskProxyLess",
+                           "websiteURL": TURNSTILE_URL,
+                           "websiteKey": TURNSTILE_SITEKEY}},
+            timeout=15)
+        data = r.json()
+    except Exception as e:
+        log(f"  capsolver createTask error: {e}")
+        return None
+    if data.get("errorId") != 0:
+        log(f"  capsolver createTask error: {data.get('errorDescription', data)}")
+        return None
+    task_id = data["taskId"]
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        time.sleep(3)
+        try:
+            r = requests.post(
+                f"{CAPSOLVER_API}/getTaskResult",
+                json={"clientKey": client_key, "taskId": task_id},
+                timeout=10)
+            data = r.json()
+        except Exception as e:
+            log(f"  capsolver poll error: {e}")
+            return None
+        if data.get("status") == "ready":
+            return data["solution"]["token"]
+        if data.get("errorId") != 0:
+            log(f"  capsolver error: {data.get('errorDescription', data)}")
+            return None
+    log("  capsolver: timeout waiting for Turnstile solution")
+    return None
 
 
 def log(msg):
@@ -111,15 +177,15 @@ def _sign_siwe(addr, priv, nonce):
     return message, sig
 
 
-def farm_one(session, idx):
+def farm_one(session, idx, capsolver_key):
     # 1. Generate fresh wallet
     acct = Account.create()
     addr = acct.address
     priv = acct.key.hex()
     log(f"=== account #{idx} : {addr} ===")
 
-    # 2-4. Nonce + sign + login, with fresh nonce per retry
-    # (nonce is single-use; a timed-out attempt may have consumed it)
+    # 2-4. Nonce + sign + Turnstile + login, fresh nonce and token per retry
+    # (both are single-use; a timed-out attempt may have consumed them)
     token = None
     user_id = None
     for attempt in range(3):
@@ -128,11 +194,18 @@ def farm_one(session, idx):
             log("  nonce failed")
             continue
         message, sig = _sign_siwe(addr, priv, nonce)
+        # Turnstile token is single-use like the nonce: solve fresh per attempt.
+        ts_token = _solve_turnstile(capsolver_key)
+        if not ts_token:
+            log(f"  login attempt {attempt+1}: turnstile solve failed")
+            time.sleep(5)
+            continue
         try:
             r = session.post(
                 f"{BASE}/auth/login",
                 json={"address": addr, "channel": "gonka",
-                      "message": message, "signature": sig},
+                      "message": message, "signature": sig,
+                      "turnstile_token": ts_token},
                 timeout=60)
             if r.status_code == 200:
                 body = r.json()
@@ -228,6 +301,14 @@ def main():
                     help="http://user:pass@host:port (overrides file)")
     args = ap.parse_args()
 
+    capsolver_key = _load_capsolver_key()
+    if not capsolver_key:
+        log("ERROR: GonkaRouter login now requires Turnstile, but no "
+            "Capsolver key found. Set it via Farm TokenHarbor > Setup "
+            "capsolver first.")
+        sys.exit(1)
+    log("capsolver key loaded")
+
     proxies = [args.proxy] if args.proxy else load_proxies()
     if proxies:
         log(f"proxies loaded: {len(proxies)}")
@@ -246,7 +327,7 @@ def main():
         if proxy:
             s.proxies = {"http": proxy, "https": proxy}
         try:
-            rec = farm_one(s, i)
+            rec = farm_one(s, i, capsolver_key)
         except Exception as e:
             log(f"  unexpected: {e}")
             rec = None

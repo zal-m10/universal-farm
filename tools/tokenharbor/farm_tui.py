@@ -1778,7 +1778,7 @@ def menu_gonka_run_farm():
 
     count = IntPrompt.ask("\nHow many keys to farm?", default=1)
     console.print(f"\n[dim]Script: {_gonka_script}[/dim]")
-    console.print("[dim]Pure HTTP SIWE — no browser, no email, no captcha. $20/account.[/dim]\n")
+    console.print("[dim]Pure HTTP SIWE — Turnstile solved via Capsolver. $20/account.[/dim]\n")
 
     if not Confirm.ask(f"Start farming {count} GonkaRouter key(s)?", default=True):
         return
