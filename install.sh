@@ -49,7 +49,7 @@ echo "[3/5] Setting up Python environment..."
 PYBIN="$(command -v python3.11 || command -v python3)"
 "$PYBIN" -m venv .venv
 .venv/bin/pip install -q --upgrade pip
-.venv/bin/pip install -q playwright requests rich eth-account
+.venv/bin/pip install -q playwright requests rich eth-account cryptography
 
 # 4. Chromium for Playwright (needed by TokenHarbor browser farm).
 echo "[4/5] Installing Chromium..."

@@ -51,7 +51,15 @@ def _load_state() -> dict:
             return json.loads(TUI_STATE.read_text())
         except json.JSONDecodeError:
             pass
-    return {"delay": DEFAULT_DELAY, "mistral_auto_inject": False}
+    return {"delay": DEFAULT_DELAY,
+            "tokenharbor_auto_inject": False,
+            "tokenharbor_auto_inject_omniroute": False,
+            "mistral_auto_inject": False,
+            "mistral_auto_inject_omniroute": False,
+            "dahl_auto_inject": False,
+            "dahl_auto_inject_omniroute": False,
+            "gonka_auto_inject": False,
+            "gonka_auto_inject_omniroute": False}
 
 
 def _save_state(state: dict) -> None:
@@ -596,7 +604,7 @@ def menu_run_farm():
         console.print("[dim]Check progress via menu [2] Results → [b] Background log.[/dim]")
         # Arm monitor if auto-inject ON or Telegram configured.
         state = _load_state()
-        if _should_arm_monitor(state, "tokenharbor_auto_inject"):
+        if _should_arm_monitor(state, "tokenharbor_auto_inject") or state.get("tokenharbor_auto_inject_omniroute", False):
             _arm_inject_monitor(str(_monitor_path("tokenharbor")), farm_pid, ts, "tokenharbor",
                                 count, sorted(_before_keys_th))
     else:
@@ -613,6 +621,13 @@ def menu_run_farm():
                 console.print(f"[red]Inject failed: {err}[/red]")
             else:
                 console.print(f"[green]✓ Injected: {added} new, {skipped} already there.[/green]")
+        if state.get("tokenharbor_auto_inject_omniroute", False):
+            console.print("\n[dim]Auto-injecting to OmniRoute...[/dim]")
+            added, skipped, err = _inject_tokenharbor_to_omniroute()
+            if err:
+                console.print(f"[red]Inject failed: {err}[/red]")
+            else:
+                console.print(f"[green]✓ Injected to OmniRoute: {added} new, {skipped} already there.[/green]")
         # Telegram notification — only keys from THIS run.
         try:
             accounts = _get_accounts()
@@ -861,7 +876,9 @@ def menu_tokenharbor():
 
         _status_line(state, proxies, tempik, capsolver)
         th_inject_on = state.get("tokenharbor_auto_inject", False)
-        console.print(f"  [dim]auto-inject:[/dim] {'[green]ON[/green]' if th_inject_on else '[dim]OFF[/dim]'}",
+        th_inject_om = state.get("tokenharbor_auto_inject_omniroute", False)
+        console.print(f"  [dim]auto-inject:[/dim] 9Router {'[green]ON[/green]' if th_inject_on else '[dim]OFF[/dim]'}"
+                      f" · OmniRoute {'[green]ON[/green]' if th_inject_om else '[dim]OFF[/dim]'}",
                       justify="center")
         console.print()
 
@@ -875,7 +892,7 @@ def menu_tokenharbor():
         _capsolver_on = state.get("capsolver_enabled", bool(capsolver))
         menu.add_row("[3]", "Setup email", f"currently: {_email_provider}")
         menu.add_row("[4]", "Setup capsolver", f"currently: {'ON' if _capsolver_on else 'OFF'}")
-        menu.add_row("[5]", "Auto inject 9Router", f"currently {('ON' if th_inject_on else 'OFF')}")
+        menu.add_row("[5]", "Auto inject", f"9Router {('ON' if th_inject_on else 'OFF')} · OmniRoute {('ON' if th_inject_om else 'OFF')}")
         menu.add_row("[0]", "Back", "")
         console.print(menu, justify="center")
         console.print()
@@ -1122,7 +1139,7 @@ def menu_mistral_run_farm():
         console.print(f"[dim]Log: {logfile}[/dim]")
         # Arm monitor if auto-inject ON or Telegram configured.
         state = _load_state()
-        if _should_arm_monitor(state, "mistral_auto_inject"):
+        if _should_arm_monitor(state, "mistral_auto_inject") or state.get("mistral_auto_inject_omniroute", False):
             _arm_inject_monitor(str(_monitor_path("mistral")), farm_pid, ts, "mistral",
                                 count, sorted(_before_keys_mistral))
     else:
@@ -1139,6 +1156,13 @@ def menu_mistral_run_farm():
                 console.print(f"[red]Inject failed: {err}[/red]")
             else:
                 console.print(f"[green]✓ Injected: {added} new, {skipped} already there.[/green]")
+        if state.get("mistral_auto_inject_omniroute", False):
+            console.print("\n[dim]Auto-injecting to OmniRoute...[/dim]")
+            added, skipped, err = _inject_mistral_to_omniroute()
+            if err:
+                console.print(f"[red]Inject failed: {err}[/red]")
+            else:
+                console.print(f"[green]✓ Injected to OmniRoute: {added} new, {skipped} already there.[/green]")
         # Telegram notification — only keys from THIS run.
         try:
             keys = _get_mistral_keys()
@@ -1224,7 +1248,9 @@ def menu_mistral():
         ok = len([k for k in keys if k["ok"]])
         state = _load_state()
         inject_on = state.get("mistral_auto_inject", False)
-        inject_txt = "[green]ON[/green]" if inject_on else "[dim]OFF[/dim]"
+        inject_om = state.get("mistral_auto_inject_omniroute", False)
+        inject_txt = (f"9Router {'[green]ON[/green]' if inject_on else '[dim]OFF[/dim]'} · "
+                      f"OmniRoute {'[green]ON[/green]' if inject_om else '[dim]OFF[/dim]'}")
 
         console.print(f"[dim]proxy:[/dim] {'[green]' + str(len(proxies)) + ' set[/green]' if proxies else '[red]not set[/red]'}   "
                       f"[dim]running:[/dim] [magenta]{running}[/magenta]   "
@@ -1238,7 +1264,7 @@ def menu_mistral():
         menu.add_column("hint", style="dim")
         menu.add_row("[1]", "Run farm", "farm Mistral API keys")
         menu.add_row("[2]", "Results", f"{ok} keys farmed")
-        menu.add_row("[3]", "Auto inject 9Router", f"currently {('ON' if inject_on else 'OFF')}")
+        menu.add_row("[3]", "Auto inject", f"9Router {('ON' if inject_on else 'OFF')} · OmniRoute {('ON' if inject_om else 'OFF')}")
         menu.add_row("[0]", "Back", "")
         console.print(menu, justify="center")
         console.print()
@@ -1273,78 +1299,381 @@ def _check_9router() -> tuple:
         return False, f"9Router DB check failed: {e}"
 
 
-def menu_tokenharbor_inject_toggle():
-    _clear_screen(); _harbor_header()
+# ═══════════════════════════════════════════════════════════════════════════════
+# OmniRoute inject — target kedua selain 9Router.
+#
+# OmniRoute (fork 9Router) menyimpan data di storage.sqlite dengan tabel
+# snake_case (provider_nodes / provider_connections) dan kolom asli, BUKAN
+# JSON blob. Perbedaan krusial: api_key TERENKRIPSI format
+# "enc:v1:<iv_hex>:<ciphertext_hex>:<authtag_hex>" (AES-256-GCM, IV 16 byte,
+# auth tag 16 byte). Kunci diturunkan dari STORAGE_ENCRYPTION_KEY via
+# scrypt (salt tetap "omniroute-field-encryption-v1", N=16384 r=8 p=1,
+# 32 byte) — skema dibaca dari bundle OmniRoute dan terbukti round-trip.
+# Bila install OmniRoute tanpa STORAGE_ENCRYPTION_KEY, aplikasinya sendiri
+# menyimpan plaintext (passthrough) — injector ikut menyimpan plaintext.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_OMNI_SCRYPT_SALT = b"omniroute-field-encryption-v1"
+_omni_aes_cache = {}
+
+
+def _omni_db_candidates() -> list:
+    """Candidate storage.sqlite locations for a local OmniRoute install."""
+    cands = []
+    env = os.environ.get("OMNIROUTE_DB_PATH")
+    if env:
+        cands.append(Path(env))
+    cands += [
+        # Docker named volume (install Docker seperti di VPS ini)
+        Path("/var/lib/docker/volumes/omniroute-data/_data/storage.sqlite"),
+        # Native / data-dir installs
+        Path.home() / ".omniroute" / "storage.sqlite",
+        Path("/app/data/storage.sqlite"),
+    ]
+    return cands
+
+
+def _omni_db_path():
+    """Return the OmniRoute storage.sqlite path, or None if not installed."""
+    for p in _omni_db_candidates():
+        if p.exists():
+            return p
+    import glob as _glob
+    for hit in sorted(_glob.glob(
+            "/var/lib/docker/volumes/*omniroute*/_data/storage.sqlite")):
+        return Path(hit)
+    return None
+
+
+def _check_omniroute() -> tuple:
+    """Check if OmniRoute is installed on this server. Returns (ok, msg)."""
+    db = _omni_db_path()
+    if db is None:
+        return False, "OmniRoute is not installed on this server."
+    try:
+        import sqlite3
+        conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        conn.close()
+        if 'provider_nodes' not in tables or 'provider_connections' not in tables:
+            return False, "OmniRoute DB found but schema is incomplete."
+        return True, f"OmniRoute detected ({db})."
+    except Exception as e:
+        return False, f"OmniRoute DB check failed: {e}"
+
+
+def _omni_storage_key():
+    """Find the STORAGE_ENCRYPTION_KEY of the local OmniRoute install."""
+    for var in ("OMNIROUTE_STORAGE_ENCRYPTION_KEY", "STORAGE_ENCRYPTION_KEY"):
+        v = os.environ.get(var)
+        if v and v.strip():
+            return v.strip()
+    for env_file in (Path("/opt/omniroute/.env"),
+                     Path.home() / ".omniroute" / ".env",
+                     Path("/app/data/server.env")):
+        try:
+            if env_file.exists():
+                for line in env_file.read_text().splitlines():
+                    line = line.strip()
+                    if line.startswith("STORAGE_ENCRYPTION_KEY="):
+                        v = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        if v:
+                            return v
+        except Exception:
+            pass
+    # Docker install: baca env container-nya langsung.
+    try:
+        out = subprocess.run(
+            ["docker", "inspect", "--format",
+             "{{range .Config.Env}}{{println .}}{{end}}", "omniroute"],
+            capture_output=True, text=True, timeout=10)
+        for line in out.stdout.splitlines():
+            if line.startswith("STORAGE_ENCRYPTION_KEY="):
+                v = line.split("=", 1)[1].strip()
+                if v:
+                    return v
+    except Exception:
+        pass
+    return None
+
+
+def _omni_aes():
+    """AESGCM instance keyed for this OmniRoute install, or None."""
+    sek = _omni_storage_key()
+    if not sek:
+        return None
+    if sek in _omni_aes_cache:
+        return _omni_aes_cache[sek]
+    import hashlib
+    key = hashlib.scrypt(sek.encode(), salt=_OMNI_SCRYPT_SALT,
+                         n=16384, r=8, p=1, dklen=32,
+                         maxmem=64 * 1024 * 1024)
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    aes = AESGCM(key)
+    _omni_aes_cache[sek] = aes
+    return aes
+
+
+def _omni_encrypt(plaintext: str, aes) -> str:
+    """Encrypt exactly like OmniRoute: enc:v1:<iv_hex>:<ct_hex>:<tag_hex>."""
+    iv = os.urandom(16)
+    out = aes.encrypt(iv, plaintext.encode(), None)
+    ct, tag = out[:-16], out[-16:]
+    return f"enc:v1:{iv.hex()}:{ct.hex()}:{tag.hex()}"
+
+
+def _omni_decrypt(value, aes):
+    """Decrypt an OmniRoute enc:v1 value; passthrough plaintext; None on failure.
+
+    aes=None means this OmniRoute install has no STORAGE_ENCRYPTION_KEY,
+    so the app itself stores plaintext — nothing to decrypt.
+    """
+    if not value or not isinstance(value, str):
+        return value
+    if not value.startswith("enc:v1:"):
+        return value
+    if aes is None:
+        return value
+    try:
+        iv_hex, ct_hex, tag_hex = value[len("enc:v1:"):].split(":")
+        data = bytes.fromhex(ct_hex) + bytes.fromhex(tag_hex)
+        return aes.decrypt(bytes.fromhex(iv_hex), data, None).decode()
+    except Exception:
+        return None
+
+
+def _omni_now() -> str:
+    from datetime import datetime, timezone
+    dt = datetime.now(timezone.utc)
+    return dt.strftime('%Y-%m-%dT%H:%M:%S.') + f"{dt.microsecond // 1000:03d}Z"
+
+
+def _restart_omniroute(db_path) -> None:
+    """Best-effort container restart so OmniRoute reloads new connections."""
+    try:
+        if "docker/volumes" not in str(db_path):
+            return
+        subprocess.run(["docker", "restart", "omniroute"],
+                       capture_output=True, timeout=120)
+    except Exception:
+        pass
+
+
+def _inject_entries_to_omniroute(entries, builtin=None, node=None) -> tuple:
+    """Generic OmniRoute injector. Returns (added, skipped, error).
+
+    entries: list of {'api_key': str, 'label': str, 'psd': dict|None}
+    builtin: built-in provider id ('dahl' / 'mistral'), no node needed.
+    node:    {'base_url', 'prefix', 'name'} for openai-compatible nodes —
+             the node is reused by base_url when it already exists.
+    """
+    import sqlite3, uuid
+    db = _omni_db_path()
+    if db is None:
+        return 0, 0, "OmniRoute DB not found on this server."
+    # aes=None = OmniRoute tanpa STORAGE_ENCRYPTION_KEY: aplikasinya sendiri
+    # menyimpan plaintext (passthrough), jadi kita ikut menyimpan plaintext.
+    aes = _omni_aes()
+    try:
+        conn = sqlite3.connect(str(db), timeout=30)
+    except Exception as e:
+        return 0, 0, f"DB open failed: {e}"
+    try:
+        conn.execute("PRAGMA busy_timeout=30000")
+        if node:
+            row = conn.execute(
+                "SELECT id, prefix, name FROM provider_nodes "
+                "WHERE base_url=? LIMIT 1", (node["base_url"],)).fetchone()
+            if row:
+                provider_id, prefix, node_name = row
+            else:
+                provider_id = 'openai-compatible-chat-' + str(uuid.uuid4())
+                prefix, node_name = node["prefix"], node["name"]
+                now = _omni_now()
+                conn.execute(
+                    "INSERT INTO provider_nodes"
+                    " (id,type,name,prefix,api_type,base_url,created_at,updated_at)"
+                    " VALUES (?,?,?,?,?,?,?,?)",
+                    (provider_id, 'openai-compatible', node_name, prefix,
+                     'chat', node["base_url"], now, now))
+                conn.commit()
+        else:
+            provider_id, prefix, node_name = builtin, None, None
+
+        # Dedupe: existing api_keys are encrypted — decrypt to compare.
+        have = set()
+        for (raw,) in conn.execute(
+                "SELECT api_key FROM provider_connections WHERE provider=?",
+                (provider_id,)):
+            plain = _omni_decrypt(raw, aes)
+            if plain:
+                have.add(plain)
+
+        added = skipped = 0
+        for e in entries:
+            key = e.get("api_key")
+            if not key:
+                continue
+            if key in have:
+                skipped += 1
+                continue
+            n = conn.execute(
+                "SELECT COUNT(*) FROM provider_connections WHERE provider=?",
+                (provider_id,)).fetchone()[0] + 1
+            if node:
+                psd = {'prefix': prefix, 'apiType': 'chat',
+                       'baseUrl': node["base_url"], 'nodeName': node_name,
+                       'label': e.get("label") or ''}
+            else:
+                psd = dict(e.get("psd") or {})
+            now = _omni_now()
+            conn.execute(
+                "INSERT INTO provider_connections"
+                " (id,provider,auth_type,name,email,priority,is_active,api_key,"
+                " test_status,backoff_level,provider_specific_data,"
+                " proxy_enabled,per_key_proxy_enabled,quota_visible,"
+                " rate_limit_protection,consecutive_use_count,created_at,updated_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (str(uuid.uuid4()), provider_id, 'apikey', f'Key {n}', None,
+                 1, 1, (_omni_encrypt(key, aes) if aes else key), 'active', 0,
+                 json.dumps(psd), 1, 0, 1, 0, 0, now, now))
+            conn.commit()
+            have.add(key)
+            added += 1
+        conn.close()
+        if added:
+            _restart_omniroute(db)
+        return added, skipped, None
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return 0, 0, str(e)
+
+
+def _inject_tokenharbor_to_omniroute() -> tuple:
+    """Inject TokenHarbor keys into OmniRoute custom node. Returns (added, skipped, error)."""
+    if not RESULTS_PATH.exists():
+        return 0, 0, None
+    try:
+        data = json.loads(RESULTS_PATH.read_text())
+        accounts = data if isinstance(data, list) else [data]
+    except (json.JSONDecodeError, OSError):
+        accounts = []
+    entries = [{'api_key': a.get("api_key"), 'label': a.get("email", "")}
+               for a in accounts if a.get("ok") and a.get("api_key")]
+    return _inject_entries_to_omniroute(
+        entries, node={'base_url': 'https://tokenharbor.ai/v1',
+                        'prefix': 'HrbrFarm', 'name': 'hrbrfarm'})
+
+
+def _inject_mistral_to_omniroute() -> tuple:
+    """Inject Mistral keys into OmniRoute's built-in 'mistral' provider. Returns (added, skipped, error)."""
+    entries = [{'api_key': k["api_key"], 'label': k["email"],
+                'psd': {'connectionProxyEnabled': False, 'connectionProxyUrl': '',
+                        'connectionNoProxy': ''}}
+               for k in _get_mistral_keys() if k.get("ok") and k.get("api_key")]
+    return _inject_entries_to_omniroute(entries, builtin='mistral')
+
+
+def _inject_dahl_to_omniroute() -> tuple:
+    """Inject Dahl keys into OmniRoute's built-in 'dahl' provider. Returns (added, skipped, error)."""
+    entries = [{'api_key': k["api_key"], 'label': k["username"],
+                'psd': {'connectionProxyEnabled': False, 'connectionProxyUrl': '',
+                        'connectionNoProxy': ''}}
+               for k in _get_dahl_keys() if k.get("ok") and k.get("api_key")]
+    return _inject_entries_to_omniroute(entries, builtin='dahl')
+
+
+def _inject_gonka_to_omniroute() -> tuple:
+    """Inject GonkaRouter keys into OmniRoute custom node. Returns (added, skipped, error)."""
+    entries = [{'api_key': k["api_key"], 'label': k["address"]}
+               for k in _get_gonka_keys() if k.get("ok") and k.get("api_key")]
+    return _inject_entries_to_omniroute(
+        entries, node={'base_url': 'https://api.gonkarouter.io/v1',
+                        'prefix': 'gofarm', 'name': 'gonkarouter'})
+
+
+def _menu_inject_targets(provider_label, state_key, header_fn,
+                         inject_9r, inject_omni):
+    """Toggle auto-inject targets: 9Router, OmniRoute, atau keduanya."""
+    header_fn()
     console.print()
     state = _load_state()
-    current = state.get("tokenharbor_auto_inject", False)
-    console.print(f"\nAuto inject 9Router is currently: "
-                  f"{'[green]ON[/green]' if current else '[dim]OFF[/dim]'}")
-    console.print("[dim]ON = new keys are auto-injected to 9Router (prefix HrbrFarm).[/dim]")
-    console.print("[dim]OFF = injection disabled.[/dim]\n")
-    console.print("[1] Turn ON")
-    console.print("[2] Turn OFF")
+    omni_key = state_key + "_omniroute"
+    cur_9r = state.get(state_key, False)
+    cur_om = state.get(omni_key, False)
+
+    def txt(v):
+        return "[green]ON[/green]" if v else "[dim]OFF[/dim]"
+
+    console.print(f"\nAuto inject targets for {provider_label}:")
+    console.print(f"  9Router:   {txt(cur_9r)}")
+    console.print(f"  OmniRoute: {txt(cur_om)}")
+    console.print("[dim]Keys are injected to every target that is ON "
+                  "(both can be ON).[/dim]\n")
+    console.print(f"[1] Turn {'OFF' if cur_9r else 'ON'} 9Router")
+    console.print(f"[2] Turn {'OFF' if cur_om else 'ON'} OmniRoute")
     console.print("[0] Back\n")
     choice = Prompt.ask("Select", choices=["0", "1", "2"], default="0",
                         show_choices=False)
     if choice == "1":
-        ok, msg = _check_9router()
-        if not ok:
-            console.print(f"\n[red]✗ {msg}[/red]")
-            Prompt.ask("\nPress Enter to continue", default="")
-            return
-        console.print(f"\n[dim]✓ {msg}[/dim]")
-        state["tokenharbor_auto_inject"] = True
-        _save_state(state)
-        console.print("[green]✓ Auto inject 9Router: ON[/green]")
-        added, skipped, err = _inject_tokenharbor_to_9router()
-        if err:
-            console.print(f"[red]Inject failed: {err}[/red]")
+        if cur_9r:
+            state[state_key] = False
+            _save_state(state)
+            console.print("\n[dim]Auto inject 9Router: OFF[/dim]")
         else:
-            console.print(f"[dim]Injected now: {added} added, {skipped} already there.[/dim]")
+            ok, msg = _check_9router()
+            if not ok:
+                console.print(f"\n[red]✗ {msg}[/red]")
+                Prompt.ask("\nPress Enter to continue", default="")
+                return
+            console.print(f"\n[dim]✓ {msg}[/dim]")
+            state[state_key] = True
+            _save_state(state)
+            console.print("[green]✓ Auto inject 9Router: ON[/green]")
+            added, skipped, err = inject_9r()
+            if err:
+                console.print(f"[red]Inject failed: {err}[/red]")
+            else:
+                console.print(f"[dim]Injected now: {added} added, {skipped} already there.[/dim]")
     elif choice == "2":
-        state["tokenharbor_auto_inject"] = False
-        _save_state(state)
-        console.print("\n[dim]Auto inject 9Router: OFF[/dim]")
+        if cur_om:
+            state[omni_key] = False
+            _save_state(state)
+            console.print("\n[dim]Auto inject OmniRoute: OFF[/dim]")
+        else:
+            ok, msg = _check_omniroute()
+            if not ok:
+                console.print(f"\n[red]✗ {msg}[/red]")
+                Prompt.ask("\nPress Enter to continue", default="")
+                return
+            console.print(f"\n[dim]✓ {msg}[/dim]")
+            state[omni_key] = True
+            _save_state(state)
+            console.print("[green]✓ Auto inject OmniRoute: ON[/green]")
+            added, skipped, err = inject_omni()
+            if err:
+                console.print(f"[red]Inject failed: {err}[/red]")
+            else:
+                console.print(f"[dim]Injected now: {added} added, {skipped} already there.[/dim]")
     Prompt.ask("\nPress Enter to continue", default="")
+
+
+def menu_tokenharbor_inject_toggle():
+    _clear_screen()
+    _menu_inject_targets("TokenHarbor", "tokenharbor_auto_inject",
+                         _harbor_header, _inject_tokenharbor_to_9router,
+                         _inject_tokenharbor_to_omniroute)
 
 
 def menu_mistral_inject_toggle():
-    _clear_screen(); _mistral_header()
-    console.print()
-    state = _load_state()
-    current = state.get("mistral_auto_inject", False)
-    console.print(f"\nAuto inject 9Router is currently: "
-                  f"{'[green]ON[/green]' if current else '[dim]OFF[/dim]'}")
-    console.print("[dim]ON = new keys are auto-injected to 9Router after farming.[/dim]")
-    console.print("[dim]OFF = injection disabled.[/dim]\n")
-    console.print("[1] Turn ON")
-    console.print("[2] Turn OFF")
-    console.print("[0] Back\n")
-    choice = Prompt.ask("Select", choices=["0", "1", "2"], default="0",
-                        show_choices=False)
-    if choice == "1":
-        # Verify 9Router is installed before enabling.
-        ok, msg = _check_9router()
-        if not ok:
-            console.print(f"\n[red]✗ {msg}[/red]")
-            Prompt.ask("\nPress Enter to continue", default="")
-            return
-        console.print(f"\n[dim]✓ {msg}[/dim]")
-        state["mistral_auto_inject"] = True
-        _save_state(state)
-        console.print("[green]✓ Auto inject 9Router: ON[/green]")
-        # Inject any existing keys now
-        added, skipped, err = _inject_mistral_to_9router()
-        if err:
-            console.print(f"[red]Inject failed: {err}[/red]")
-        else:
-            console.print(f"[dim]Injected now: {added} added, {skipped} already there.[/dim]")
-    elif choice == "2":
-        state["mistral_auto_inject"] = False
-        _save_state(state)
-        console.print("\n[dim]Auto inject 9Router: OFF[/dim]")
-    Prompt.ask("\nPress Enter to continue", default="")
+    _clear_screen()
+    _menu_inject_targets("Mistral", "mistral_auto_inject",
+                         _mistral_header, _inject_mistral_to_9router,
+                         _inject_mistral_to_omniroute)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1480,7 +1809,7 @@ def menu_dahl_run_farm():
         console.print(f"[dim]Log: {logfile}[/dim]")
         # Arm monitor if auto-inject ON or Telegram configured.
         state = _load_state()
-        if _should_arm_monitor(state, "dahl_auto_inject"):
+        if _should_arm_monitor(state, "dahl_auto_inject") or state.get("dahl_auto_inject_omniroute", False):
             _arm_inject_monitor(str(_monitor_path("dahl")), farm_pid, ts, "dahl",
                                 count, sorted(_before_keys_dahl))
     else:
@@ -1497,6 +1826,13 @@ def menu_dahl_run_farm():
                 console.print(f"[red]Inject failed: {err}[/red]")
             else:
                 console.print(f"[green]✓ Injected: {added} new, {skipped} already there.[/green]")
+        if state.get("dahl_auto_inject_omniroute", False):
+            console.print("\n[dim]Auto-injecting to OmniRoute...[/dim]")
+            added, skipped, err = _inject_dahl_to_omniroute()
+            if err:
+                console.print(f"[red]Inject failed: {err}[/red]")
+            else:
+                console.print(f"[green]✓ Injected to OmniRoute: {added} new, {skipped} already there.[/green]")
         # Telegram notification — only keys from THIS run.
         try:
             keys = _get_dahl_keys()
@@ -1571,39 +1907,10 @@ def menu_dahl_results():
 
 
 def menu_dahl_inject_toggle():
-    _clear_screen(); _dahl_header()
-    console.print()
-    state = _load_state()
-    current = state.get("dahl_auto_inject", False)
-    console.print(f"\nAuto inject 9Router is currently: "
-                  f"{'[green]ON[/green]' if current else '[dim]OFF[/dim]'}")
-    console.print("[dim]ON = new keys are auto-injected to 9Router (prefix DahlFarm).[/dim]")
-    console.print("[dim]OFF = injection disabled.[/dim]\n")
-    console.print("[1] Turn ON")
-    console.print("[2] Turn OFF")
-    console.print("[0] Back\n")
-    choice = Prompt.ask("Select", choices=["0", "1", "2"], default="0",
-                        show_choices=False)
-    if choice == "1":
-        ok, msg = _check_9router()
-        if not ok:
-            console.print(f"\n[red]✗ {msg}[/red]")
-            Prompt.ask("\nPress Enter to continue", default="")
-            return
-        console.print(f"\n[dim]✓ {msg}[/dim]")
-        state["dahl_auto_inject"] = True
-        _save_state(state)
-        console.print("[green]✓ Auto inject 9Router: ON[/green]")
-        added, skipped, err = _inject_dahl_to_9router()
-        if err:
-            console.print(f"[red]Inject failed: {err}[/red]")
-        else:
-            console.print(f"[dim]Injected now: {added} added, {skipped} already there.[/dim]")
-    elif choice == "2":
-        state["dahl_auto_inject"] = False
-        _save_state(state)
-        console.print("\n[dim]Auto inject 9Router: OFF[/dim]")
-    Prompt.ask("\nPress Enter to continue", default="")
+    _clear_screen()
+    _menu_inject_targets("Dahl", "dahl_auto_inject",
+                         _dahl_header, _inject_dahl_to_9router,
+                         _inject_dahl_to_omniroute)
 
 
 def menu_dahl():
@@ -1617,7 +1924,9 @@ def menu_dahl():
         ok = len([k for k in keys if k["ok"]])
         state = _load_state()
         inject_on = state.get("dahl_auto_inject", False)
-        inject_txt = "[green]ON[/green]" if inject_on else "[dim]OFF[/dim]"
+        inject_om = state.get("dahl_auto_inject_omniroute", False)
+        inject_txt = (f"9Router {'[green]ON[/green]' if inject_on else '[dim]OFF[/dim]'} · "
+                      f"OmniRoute {'[green]ON[/green]' if inject_om else '[dim]OFF[/dim]'}")
 
         console.print(f"[dim]running:[/dim] [green]{running}[/green]   "
                       f"[dim]keys:[/dim] [green]{ok}[/green]   "
@@ -1630,7 +1939,7 @@ def menu_dahl():
         menu.add_column("hint", style="dim")
         menu.add_row("[1]", "Run farm", "farm Dahl API keys")
         menu.add_row("[2]", "Results", f"{ok} keys farmed")
-        menu.add_row("[3]", "Auto inject 9Router", f"currently {('ON' if inject_on else 'OFF')}")
+        menu.add_row("[3]", "Auto inject", f"9Router {('ON' if inject_on else 'OFF')} · OmniRoute {('ON' if inject_om else 'OFF')}")
         menu.add_row("[0]", "Back", "")
         console.print(menu, justify="center")
         console.print()
@@ -1804,7 +2113,7 @@ def menu_gonka_run_farm():
         console.print(f"[dim]Log: {logfile}[/dim]")
         # Arm monitor if auto-inject ON or Telegram configured.
         state = _load_state()
-        if _should_arm_monitor(state, "gonka_auto_inject"):
+        if _should_arm_monitor(state, "gonka_auto_inject") or state.get("gonka_auto_inject_omniroute", False):
             _arm_inject_monitor(str(_monitor_path("gonka")), farm_pid, ts, "gonka",
                                 count, sorted(_before_keys_gonka))
     else:
@@ -1821,6 +2130,13 @@ def menu_gonka_run_farm():
                 console.print(f"[red]Inject failed: {err}[/red]")
             else:
                 console.print(f"[green]✓ Injected: {added} new, {skipped} already there.[/green]")
+        if state.get("gonka_auto_inject_omniroute", False):
+            console.print("\n[dim]Auto-injecting to OmniRoute...[/dim]")
+            added, skipped, err = _inject_gonka_to_omniroute()
+            if err:
+                console.print(f"[red]Inject failed: {err}[/red]")
+            else:
+                console.print(f"[green]✓ Injected to OmniRoute: {added} new, {skipped} already there.[/green]")
         # Telegram notification — only keys from THIS run.
         try:
             keys = _get_gonka_keys()
@@ -1895,39 +2211,10 @@ def menu_gonka_results():
 
 
 def menu_gonka_inject_toggle():
-    _clear_screen(); _gonka_header()
-    console.print()
-    state = _load_state()
-    current = state.get("gonka_auto_inject", False)
-    console.print(f"\nAuto inject 9Router is currently: "
-                  f"{'[green]ON[/green]' if current else '[dim]OFF[/dim]'}")
-    console.print("[dim]ON = new keys are auto-injected to 9Router (prefix gofarm).[/dim]")
-    console.print("[dim]OFF = injection disabled.[/dim]\n")
-    console.print("[1] Turn ON")
-    console.print("[2] Turn OFF")
-    console.print("[0] Back\n")
-    choice = Prompt.ask("Select", choices=["0", "1", "2"], default="0",
-                        show_choices=False)
-    if choice == "1":
-        ok, msg = _check_9router()
-        if not ok:
-            console.print(f"\n[red]✗ {msg}[/red]")
-            Prompt.ask("\nPress Enter to continue", default="")
-            return
-        console.print(f"\n[dim]✓ {msg}[/dim]")
-        state["gonka_auto_inject"] = True
-        _save_state(state)
-        console.print("[green]✓ Auto inject 9Router: ON[/green]")
-        added, skipped, err = _inject_gonka_to_9router()
-        if err:
-            console.print(f"[red]Inject failed: {err}[/red]")
-        else:
-            console.print(f"[dim]Injected now: {added} added, {skipped} already there.[/dim]")
-    elif choice == "2":
-        state["gonka_auto_inject"] = False
-        _save_state(state)
-        console.print("\n[dim]Auto inject 9Router: OFF[/dim]")
-    Prompt.ask("\nPress Enter to continue", default="")
+    _clear_screen()
+    _menu_inject_targets("GonkaRouter", "gonka_auto_inject",
+                         _gonka_header, _inject_gonka_to_9router,
+                         _inject_gonka_to_omniroute)
 
 
 def menu_gonka():
@@ -1941,7 +2228,9 @@ def menu_gonka():
         ok = len([k for k in keys if k["ok"]])
         state = _load_state()
         inject_on = state.get("gonka_auto_inject", False)
-        inject_txt = "[green]ON[/green]" if inject_on else "[dim]OFF[/dim]"
+        inject_om = state.get("gonka_auto_inject_omniroute", False)
+        inject_txt = (f"9Router {'[green]ON[/green]' if inject_on else '[dim]OFF[/dim]'} · "
+                      f"OmniRoute {'[green]ON[/green]' if inject_om else '[dim]OFF[/dim]'}")
 
         console.print(f"[dim]running:[/dim] [green]{running}[/green]   "
                       f"[dim]keys:[/dim] [green]{ok}[/green]   "
@@ -1954,7 +2243,7 @@ def menu_gonka():
         menu.add_column("hint", style="dim")
         menu.add_row("[1]", "Run farm", "farm GonkaRouter API keys ($20/account)")
         menu.add_row("[2]", "Results", f"{ok} keys farmed")
-        menu.add_row("[3]", "Auto inject 9Router", f"currently {('ON' if inject_on else 'OFF')}")
+        menu.add_row("[3]", "Auto inject", f"9Router {('ON' if inject_on else 'OFF')} · OmniRoute {('ON' if inject_om else 'OFF')}")
         menu.add_row("[0]", "Back", "")
         console.print(menu, justify="center")
         console.print()
@@ -2279,7 +2568,7 @@ def menu_parallel_farm():
     }
     for name, (pid, _) in procs.items():
         inject_key, mon_path, label = _monitors[name]
-        if _should_arm_monitor(state, inject_key):
+        if _should_arm_monitor(state, inject_key) or state.get(inject_key + "_omniroute", False):
             _arm_inject_monitor(mon_path, pid, ts, label,
                                 counts.get(name, 0), _p_before.get(name, []))
 
@@ -2437,6 +2726,8 @@ def _notify_farm_done(provider: str, total: int, success: int, failed: int,
         return
     inject_on = state.get(_INJECT_STATE_KEYS.get(provider, ""), False)
     inject_txt = "ON✓" if inject_on else "OFF<b>✗</b>"
+    inject_om = state.get(_INJECT_STATE_KEYS.get(provider, "") + "_omniroute", False)
+    inject_om_txt = "ON✓" if inject_om else "OFF<b>✗</b>"
 
     # Base URLs for the notification.
     _base_urls = {
@@ -2459,6 +2750,7 @@ def _notify_farm_done(provider: str, total: int, success: int, failed: int,
     if base_url:
         text += f"\nBase URL: <code>{_html.escape(base_url)}</code>"
     text += f"\nAuto inject 9Router: <b>{inject_txt}</b>"
+    text += f"\nAuto inject OmniRoute: <b>{inject_om_txt}</b>"
     text += f"\nProxy: {_proxy_summary()}"
     ok, msg = _send_telegram(text)
     return ok

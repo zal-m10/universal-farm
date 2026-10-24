@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Monitor for TokenHarbor background farm: inject to 9Router + Telegram notify.
+"""Monitor for TokenHarbor background farm: inject to 9Router/OmniRoute + Telegram notify.
 Deployed by install.sh. Do not edit manually - edit the repo version instead.
 """
 import sys
@@ -31,7 +31,7 @@ def main():
     print(f"[monitor] Watching TokenHarbor farm PID {farm_pid}...", flush=True)
     sys.path.insert(0, str(REPO_DIR))
     from tools.tokenharbor.farm_tui import (
-        _inject_tokenharbor_to_9router, _load_state, _get_accounts,
+        _inject_tokenharbor_to_9router, _inject_tokenharbor_to_omniroute, _load_state, _get_accounts,
         _notify_farm_done, NOTIFY_CHUNK)
     sent = set()
     while pid_alive(farm_pid):
@@ -55,6 +55,9 @@ def main():
     if state.get("tokenharbor_auto_inject", False):
         added, skipped, err = _inject_tokenharbor_to_9router()
         print(f"[monitor] Inject: {added} added, {skipped} skipped, err={err}", flush=True)
+    if state.get("tokenharbor_auto_inject_omniroute", False):
+        added, skipped, err = _inject_tokenharbor_to_omniroute()
+        print(f"[monitor] Inject OmniRoute: {added} added, {skipped} skipped, err={err}", flush=True)
     try:
         accounts = _get_accounts()
         fresh = [a["api_key"] for a in accounts
