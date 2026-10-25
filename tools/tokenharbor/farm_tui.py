@@ -32,7 +32,7 @@ MISTRAL_SCRIPT = Path("/root/mistral_farm.py")
 MISTRAL_KEYS = Path("/root/mistral_keys.txt")
 DAHL_SCRIPT = Path("/root/dahl_farm.py")
 DAHL_KEYS = Path("/root/dahl_keys.txt")
-GONKA_SCRIPT = Path("/root/gonka_farm.py")
+GONKA_SCRIPT = Path("/root/gonka_farm_email.py")
 GONKA_KEYS = Path("/root/gonka_keys.txt")
 
 def _resolve_script(path: Path, repo_fallback: str) -> Path:
@@ -260,7 +260,7 @@ GONKA_BANNER = r"""
 ╚██████╔╝╚██████╔╝██║ ╚████║██║  ██╗██║  ██║
  ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝
 [/bold white]
-[bold white]GonkaRouter Farm Auto CLI — SIWE Mode • $20/account[/bold white]
+[bold white]GonkaRouter Farm Auto CLI — Email + OTP Mode[/bold white]
 """
 
 
@@ -1986,7 +1986,7 @@ def _count_gonka_running() -> int:
                 continue
             try:
                 cmd = (proc / "cmdline").read_text()
-                if "gonka_farm.py" in cmd and "inject_monitor" not in cmd:
+                if "gonka_farm" in cmd and "inject_monitor" not in cmd:
                     count += 1
             except OSError:
                 pass
@@ -2079,7 +2079,7 @@ def _inject_gonka_to_9router() -> tuple:
 def menu_gonka_run_farm():
     _clear_screen(); _gonka_header()
     console.print()
-    _gonka_script = _resolve_script(GONKA_SCRIPT, "tools/tokenharbor/gonka_farm.py")
+    _gonka_script = _resolve_script(GONKA_SCRIPT, "tools/tokenharbor/gonka_farm_email.py")
     if not _gonka_script.exists():
         console.print(f"[red]✗ GonkaRouter farm script not found: {GONKA_SCRIPT}[/red]")
         Prompt.ask("\nPress Enter to continue", default="")
@@ -2087,7 +2087,7 @@ def menu_gonka_run_farm():
 
     count = IntPrompt.ask("\nHow many keys to farm?", default=1)
     console.print(f"\n[dim]Script: {_gonka_script}[/dim]")
-    console.print("[dim]Pure HTTP SIWE — Turnstile solved via Capsolver. $20/account.[/dim]\n")
+    console.print("[dim]Email + OTP — Turnstile solved via Capsolver.[/dim]\n")
 
     if not Confirm.ask(f"Start farming {count} GonkaRouter key(s)?", default=True):
         return
@@ -2103,7 +2103,8 @@ def menu_gonka_run_farm():
     bg_choice = Prompt.ask("Mode", choices=["1", "2"], default="1",
                            show_choices=False)
 
-    cmd = [sys.executable, str(_gonka_script), "--count", str(count)]
+    cmd = [sys.executable, str(_gonka_script), "--count", str(count),
+                     "--out", str(GONKA_KEYS)]
     if bg_choice == "2":
         import datetime as _dt
         ts = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -2140,14 +2141,14 @@ def menu_gonka_run_farm():
         # Telegram notification — only keys from THIS run.
         try:
             keys = _get_gonka_keys()
-            new_keys = [
-                k["api_key"] for k in keys
-                if k.get("ok") and k.get("api_key")
-                and k["api_key"] not in _before_keys_gonka
-            ]
+            new = [k for k in keys
+                   if k.get("ok") and k.get("api_key")
+                   and k["api_key"] not in _before_keys_gonka]
+            new_keys = [k["api_key"] for k in new]
             success = min(len(new_keys), count)
             _notify_farm_done("GonkaRouter", count, success, count - success,
-                              new_keys[:count])
+                              new_keys[:count],
+                              emails=[k["address"] for k in new[:count]])
         except Exception:
             pass
     Prompt.ask("\nPress Enter to continue", default="")
@@ -2241,7 +2242,7 @@ def menu_gonka():
         menu.add_column("key", style="bold white", width=5, justify="right")
         menu.add_column("label", style="white")
         menu.add_column("hint", style="dim")
-        menu.add_row("[1]", "Run farm", "farm GonkaRouter API keys ($20/account)")
+        menu.add_row("[1]", "Run farm", "farm GonkaRouter API keys (email + OTP)")
         menu.add_row("[2]", "Results", f"{ok} keys farmed")
         menu.add_row("[3]", "Auto inject", f"9Router {('ON' if inject_on else 'OFF')} · OmniRoute {('ON' if inject_om else 'OFF')}")
         menu.add_row("[0]", "Back", "")
@@ -2362,7 +2363,7 @@ def _get_running_farms() -> list:
             elif "mistral_farm.py" in cmd and "inject_monitor" not in cmd:
                 logs = sorted(Path("/tmp").glob("mistral-farm-*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
                 running.append(("Mistral", int(proc.name), str(logs[0]) if logs else "-"))
-            elif "gonka_farm.py" in cmd and "inject_monitor" not in cmd:
+            elif "gonka_farm" in cmd and "inject_monitor" not in cmd:
                 logs = sorted(Path("/tmp").glob("gonka-farm-*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
                 running.append(("GonkaRouter", int(proc.name), str(logs[0]) if logs else "-"))
         except OSError:
@@ -2466,7 +2467,7 @@ def menu_parallel_farm():
         if not _ds.exists():
             problems.append(f"Dahl script not found: {DAHL_SCRIPT}")
     if any(name == "GonkaRouter" for _, name in selected):
-        _gs = _resolve_script(GONKA_SCRIPT, "tools/tokenharbor/gonka_farm.py")
+        _gs = _resolve_script(GONKA_SCRIPT, "tools/tokenharbor/gonka_farm_email.py")
         if not _gs.exists():
             problems.append(f"GonkaRouter script not found: {GONKA_SCRIPT}")
     if problems:
@@ -2546,9 +2547,10 @@ def menu_parallel_farm():
 
     # GonkaRouter farm
     if "GonkaRouter" in counts:
-        _gs = _resolve_script(GONKA_SCRIPT, "tools/tokenharbor/gonka_farm.py")
+        _gs = _resolve_script(GONKA_SCRIPT, "tools/tokenharbor/gonka_farm_email.py")
         gonka_cmd = [sys.executable, str(_gs),
-                     "--count", str(counts["GonkaRouter"])]
+                     "--count", str(counts["GonkaRouter"]),
+                     "--out", str(GONKA_KEYS)]
         gonka_log = f"/tmp/gonka-farm-{ts}.log"
         gonka_pid = _spawn_detached(gonka_cmd, gonka_log)
         procs["GonkaRouter"] = (gonka_pid, gonka_log)
@@ -2717,7 +2719,8 @@ def _proxy_summary() -> str:
 
 
 def _notify_farm_done(provider: str, total: int, success: int, failed: int,
-                      keys: list = None, progress: str = None):
+                      keys: list = None, progress: str = None,
+                      emails: list = None):
     """Send farm completion notification to Telegram if configured.
     If progress is set (e.g. "150/1000"), title shows progress instead."""
     import html as _html
@@ -2747,6 +2750,10 @@ def _notify_farm_done(provider: str, total: int, success: int, failed: int,
         # Code block -> Telegram shows COPY CODE button.
         escaped = "\n".join(_html.escape(k) for k in keys)
         text += f"<pre>{escaped}</pre>\n"
+    if emails:
+        # Second code block: Tempik emails, same order as the keys above.
+        escaped_emails = "\n".join(_html.escape(e) for e in emails)
+        text += f"<pre>{escaped_emails}</pre>\n"
     if base_url:
         text += f"\nBase URL: <code>{_html.escape(base_url)}</code>"
     text += f"\nAuto inject 9Router: <b>{inject_txt}</b>"
@@ -2827,7 +2834,7 @@ def menu_uninstall():
     # 1. Kill running farms.
     console.print("[dim]Stopping running farms...[/dim]")
     import subprocess as _sp
-    for pat in ["dahl_farm.py", "gonka_farm.py", "mistral_farm.py",
+    for pat in ["dahl_farm.py", "gonka_farm.py", "gonka_farm_email.py", "mistral_farm.py",
                 "tools.tokenharbor.cli", "inject_monitor.py"]:
         _sp.run(["pkill", "-f", pat], capture_output=True)
     # 2. Remove farm command.
@@ -2912,7 +2919,7 @@ def main():
         menu.add_row(_gnum("1"), "Farm TokenHarbor", "TokenHarbor account farming")
         menu.add_row(_gnum("2"), "Farm Mistral keys", "Mistral API key farming")
         menu.add_row(_gnum("3"), "Farm Dahl keys", "Dahl Inference API keys")
-        menu.add_row(_gnum("4"), "Farm GonkaRouter keys", "GonkaRouter API keys ($20/account)")
+        menu.add_row(_gnum("4"), "Farm GonkaRouter keys", "GonkaRouter API keys (email + OTP)")
         menu.add_row(_gnum("5"), "Parallel farm", "run farms in background")
         menu.add_row(_gnum("6"), "Delay setting", f"currently {state['delay']}s")
         menu.add_row(_gnum("7"), "Setup Proxy", f"{len(proxies)} configured" if proxies else "not configured")
