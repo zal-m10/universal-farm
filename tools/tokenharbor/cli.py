@@ -47,7 +47,7 @@ def _load_config() -> dict:
         },
         "tempik": {"base_url": ""},
         "files": {
-            "capsolver_key": "tools/.capsolver_key",
+            "capsolver_key": "tools/tokenharbor/.capsolver_key",
             "proxy_list": "tools/proxies.txt",
             "account_output": "account.json",
         },
@@ -86,8 +86,12 @@ _DOMAINS_CACHE: Optional[list[str]] = None
 
 
 def _load_capsolver_key() -> Optional[str]:
-    if _CAPSOLVER_KEY_FILE.exists():
-        return _CAPSOLVER_KEY_FILE.read_text().strip()
+    legacy = PROJECT_ROOT / "tools" / ".capsolver_key"
+    for p in (_CAPSOLVER_KEY_FILE, legacy):
+        if p.exists():
+            key = p.read_text().strip()
+            if key:
+                return key
     return None
 
 

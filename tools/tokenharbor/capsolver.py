@@ -13,14 +13,18 @@ TURNSTILE_URL = "https://tokenharbor.ai/login?mode=signup"
 
 
 def _load_capsolver_key() -> str:
-    """Load Capsolver API key from file."""
-    key_file = Path(__file__).resolve().parent.parent / ".capsolver_key"
-    if not key_file.exists():
-        raise FileNotFoundError(
-            f"Capsolver key file not found: {key_file}\n"
-            "Create it with your Capsolver API key."
-        )
-    return key_file.read_text().strip()
+    """Load Capsolver API key from file (canonical first, legacy fallback)."""
+    here = Path(__file__).resolve().parent
+    for key_file in (here / ".capsolver_key",
+                     here.parent / ".capsolver_key"):
+        if key_file.exists():
+            key = key_file.read_text().strip()
+            if key:
+                return key
+    raise FileNotFoundError(
+        f"Capsolver key file not found: {here / '.capsolver_key'}\n"
+        "Create it with your Capsolver API key."
+    )
 
 
 def solve_turnstile(

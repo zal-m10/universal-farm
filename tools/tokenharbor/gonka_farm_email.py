@@ -77,7 +77,7 @@ def log(msg, progress_file):
 def load_capsolver_key():
     here = Path(__file__).resolve().parent
     for p in [here / ".capsolver_key",
-              Path("/root/universal-farm/tools/tokenharbor/.capsolver_key")]:
+              Path("/root/universal-farm/tools/.capsolver_key")]:
         try:
             if p.exists():
                 key = p.read_text().strip()

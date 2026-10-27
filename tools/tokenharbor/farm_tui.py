@@ -89,7 +89,7 @@ def _set_tempik_url(url: str) -> None:
     cfg.setdefault("tokenharbor", {})["turnstile_sitekey"] = "0x4AAAAAADBuC8Knz1EJZx9-"
     cfg.setdefault("tempik", {})["base_url"] = url
     files = cfg.setdefault("files", {})
-    files.setdefault("capsolver_key", "tools/.capsolver_key")
+    files.setdefault("capsolver_key", "tools/tokenharbor/.capsolver_key")
     files.setdefault("proxy_list", "tools/proxies.txt")
     files.setdefault("account_output", "account.json")
     cfg.setdefault("models", {})["free"] = [
@@ -277,7 +277,7 @@ def _status_line(state: dict, proxies: list, tempik, capsolver) -> None:
         return "[bright_green]●[/bright_green]" if ok else "[bright_red]●[/bright_red]"
     proxy_txt = f"{len(proxies)} proxies" if proxies else "no proxy"
     email_provider = state.get("tokenharbor_email_provider", "tempmail")
-    capsolver_on = state.get("capsolver_enabled", bool(capsolver))
+    capsolver_on = state.get("capsolver_enabled", bool(capsolver)) and bool(capsolver)
     console.print(
         f"{dot(bool(proxies))} [white]{proxy_txt}[/white]   "
         f"{dot(True)} [white]email:{email_provider}[/white]   "
@@ -315,9 +315,12 @@ def menu_setup_capsolver():
     choice = Prompt.ask("Select", choices=["0", "1", "2", "3"],
                         default="1", show_choices=False)
     if choice == "1":
-        state["capsolver_enabled"] = not enabled
-        _save_state(state)
-        console.print(f"[green]Capsolver {'disabled' if enabled else 'enabled'}.[/green]")
+        if not enabled and _get_capsolver() is None:
+            console.print("[yellow]Capsolver key belum ada \u2014 pilih [2] Set API key dulu.[/yellow]")
+        else:
+            state["capsolver_enabled"] = not enabled
+            _save_state(state)
+            console.print(f"[green]Capsolver {'disabled' if enabled else 'enabled'}.[/green]")
     elif choice == "2":
         val = Prompt.ask("Enter Capsolver API key (empty to cancel)", password=True)
         if val.strip():
@@ -891,14 +894,12 @@ def menu_tokenharbor():
         menu.add_row("[1]", "Run farm", "start farming accounts")
         menu.add_row("[2]", "Results", "view farmed accounts")
         _email_provider = state.get("tokenharbor_email_provider", "tempmail")
-        _capsolver_on = state.get("capsolver_enabled", bool(capsolver))
         menu.add_row("[3]", "Setup email", f"currently: {_email_provider}")
-        menu.add_row("[4]", "Setup capsolver", f"currently: {'ON' if _capsolver_on else 'OFF'}")
-        menu.add_row("[5]", "Auto inject", f"9Router {('ON' if th_inject_on else 'OFF')} · OmniRoute {('ON' if th_inject_om else 'OFF')}")
+        menu.add_row("[4]", "Auto inject", f"9Router {('ON' if th_inject_on else 'OFF')} · OmniRoute {('ON' if th_inject_om else 'OFF')}")
         menu.add_row("[0]", "Back", "")
         console.print(menu, justify="center")
         console.print()
-        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3", "4", "5"],
+        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3", "4"],
                             default="1", show_choices=False, show_default=False)
         if choice == "1":
             menu_run_farm()
@@ -907,8 +908,6 @@ def menu_tokenharbor():
         elif choice == "3":
             menu_setup_tempik()
         elif choice == "4":
-            menu_setup_capsolver()
-        elif choice == "5":
             menu_tokenharbor_inject_toggle()
         else:
             return
@@ -942,7 +941,10 @@ def _inject_tokenharbor_to_9router() -> tuple:
     """Inject TokenHarbor keys into 9Router SQLite. Returns (added, skipped, error)."""
     import sqlite3, uuid
     from datetime import datetime, timezone
-    DB = '/var/lib/9router/db/data.sqlite'
+    _db = _9r_db_path()
+    if _db is None:
+        return 0, 0, "9Router is not installed on this server."
+    DB = str(_db)
     PREFIX = 'HrbrFarm'
     BASE_URL = 'https://tokenharbor.ai/v1'
     NODE_NAME = 'hrbrfarm'
@@ -1033,7 +1035,10 @@ def _inject_mistral_to_9router() -> tuple:
     """Inject Mistral keys into 9Router's built-in 'mistral' provider. Returns (added, skipped, error)."""
     import sqlite3, uuid
     from datetime import datetime, timezone
-    DB = '/var/lib/9router/db/data.sqlite'
+    _db = _9r_db_path()
+    if _db is None:
+        return 0, 0, "9Router is not installed on this server."
+    DB = str(_db)
     PROVIDER = 'mistral'  # built-in provider id, no custom node needed
 
     def now():
@@ -1282,10 +1287,33 @@ def menu_mistral():
             return
 
 
+def _9r_db_candidates() -> list:
+    """Candidate data.sqlite locations for a local 9Router install."""
+    cands = []
+    env = os.environ.get("NINEROUTER_DB_PATH")
+    if env:
+        cands.append(Path(env))
+    cands += [
+        # npm global install (default: data under the user's home)
+        Path.home() / ".9router" / "db" / "data.sqlite",
+        # installs with a system data dir
+        Path("/var/lib/9router/db/data.sqlite"),
+    ]
+    return cands
+
+
+def _9r_db_path():
+    """Return the 9Router data.sqlite path, or None if not installed."""
+    for p in _9r_db_candidates():
+        if p.exists():
+            return p
+    return None
+
+
 def _check_9router() -> tuple:
     """Check if 9Router is installed. Returns (ok: bool, msg: str)."""
-    db = Path('/var/lib/9router/db/data.sqlite')
-    if not db.exists():
+    db = _9r_db_path()
+    if db is None:
         return False, "9Router is not installed on this server."
     # Verify the expected tables exist.
     try:
@@ -1296,7 +1324,7 @@ def _check_9router() -> tuple:
         conn.close()
         if 'providerNodes' not in tables or 'providerConnections' not in tables:
             return False, "9Router DB found but schema is incomplete."
-        return True, "9Router detected."
+        return True, f"9Router detected ({db})."
     except Exception as e:
         return False, f"9Router DB check failed: {e}"
 
@@ -1722,7 +1750,10 @@ def _inject_dahl_to_9router() -> tuple:
     """Inject Dahl keys into 9Router's built-in 'dahl' provider. Returns (added, skipped, error)."""
     import sqlite3, uuid
     from datetime import datetime, timezone
-    DB = '/var/lib/9router/db/data.sqlite'
+    _db = _9r_db_path()
+    if _db is None:
+        return 0, 0, "9Router is not installed on this server."
+    DB = str(_db)
     PROVIDER = 'dahl'  # built-in provider id, no custom node needed
 
     def now():
@@ -2001,7 +2032,10 @@ def _inject_gonka_to_9router() -> tuple:
     """Inject GonkaRouter keys into 9Router custom node. Returns (added, skipped, error)."""
     import sqlite3, uuid
     from datetime import datetime, timezone
-    DB = '/var/lib/9router/db/data.sqlite'
+    _db = _9r_db_path()
+    if _db is None:
+        return 0, 0, "9Router is not installed on this server."
+    DB = str(_db)
     PREFIX = 'gofarm'
     BASE_URL = 'https://api.gonkarouter.io/v1'
     NODE_NAME = 'gonkarouter'
@@ -2902,7 +2936,7 @@ def main():
         menu.add_column("label", style="white")
         menu.add_column("hint", style="dim")
         # Gradient numbers: sample FARM_GRADIENT across the menu items.
-        _nums = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
+        _nums = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "0"]
         def _gnum(n):
             idx = _nums.index(n)
             t = idx / max(len(_nums) - 1, 1)
@@ -2927,10 +2961,11 @@ def main():
         menu.add_row(_gnum("7"), "Setup Proxy", f"{len(proxies)} configured" if proxies else "not configured")
         menu.add_row(_gnum("8"), "Setup Bot Tele", "Telegram notifications")
         menu.add_row(_gnum("9"), "Uninstall", "remove farm completely")
+        menu.add_row(_gnum("10"), "Setup capsolver", "shared by all farms")
         menu.add_row(_gnum("0"), "Exit", "")
         console.print(menu, justify="center")
         console.print()
-        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
+        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
                             default="1", show_choices=False, show_default=False)
         if choice == "1":
             menu_tokenharbor()
@@ -2950,6 +2985,8 @@ def main():
             menu_setup_telegram()
         elif choice == "9":
             menu_uninstall()
+        elif choice == "10":
+            menu_setup_capsolver()
         else:
             console.print("\nBye.")
             break
