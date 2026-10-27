@@ -34,6 +34,12 @@ def main():
         _inject_tokenharbor_to_9router, _inject_tokenharbor_to_omniroute, _load_state, _get_accounts,
         _notify_farm_done, NOTIFY_CHUNK)
     sent = set()
+
+    def _emails(aks, keys):
+        # Tempik emails in the same order as the keys, for the second
+        # code block of the notification (keys block stays pure).
+        by_key = {k["api_key"]: k for k in keys}
+        return [(by_key.get(a) or {}).get("email", "") for a in aks]
     while pid_alive(farm_pid):
         try:
             accounts = _get_accounts()
@@ -43,7 +49,8 @@ def main():
             while len(fresh) >= NOTIFY_CHUNK:
                 chunk = fresh[:NOTIFY_CHUNK]
                 prog = f"{len(sent)+len(chunk)}/{count}" if count else f"{len(sent)+len(chunk)}"
-                _notify_farm_done("TokenHarbor", NOTIFY_CHUNK, NOTIFY_CHUNK, 0, chunk, progress=prog)
+                _notify_farm_done("TokenHarbor", NOTIFY_CHUNK, NOTIFY_CHUNK, 0, chunk, progress=prog,
+                                emails=_emails(chunk, accounts))
                 sent.update(chunk)
                 fresh = fresh[NOTIFY_CHUNK:]
                 print(f"[monitor] Progress sent: {len(sent)} keys.", flush=True)
@@ -66,7 +73,8 @@ def main():
         total_done = len(sent) + len(fresh)
         failed = max(0, count - total_done) if count else 0
         _notify_farm_done("TokenHarbor", count if count else total_done,
-                          total_done, failed, fresh)
+                          total_done, failed, fresh,
+                          emails=_emails(fresh, accounts))
         print("[monitor] Telegram sent.", flush=True)
     except Exception as e:
         print(f"[monitor] Telegram failed: {e}", flush=True)

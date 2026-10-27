@@ -631,14 +631,16 @@ def menu_run_farm():
         # Telegram notification — only keys from THIS run.
         try:
             accounts = _get_accounts()
-            new_keys = [
-                a["api_key"] for a in accounts
+            new = [
+                a for a in accounts
                 if a.get("ok") and a.get("api_key")
                 and a["api_key"] not in _before_keys_th
             ]
+            new_keys = [a["api_key"] for a in new]
             success = min(len(new_keys), count)
             _notify_farm_done("TokenHarbor", count, success, count - success,
-                              new_keys[:count])
+                              new_keys[:count],
+                              emails=[a.get("email", "") for a in new[:count]])
         except Exception:
             pass
     Prompt.ask("\nPress Enter to continue", default="")
