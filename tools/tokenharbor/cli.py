@@ -646,7 +646,7 @@ def _run_status(email: str, password: str) -> int:
 
 def _run_browser_farm(count: int, headed: bool = False,
                       delay: int = 30, email_provider: str = "tempmail") -> int:
-    """Full-auto farm: real Chromium signup + HTTP for the rest."""
+    """Full-auto farm: real Chromium signup + verify + API key (no HTTP login)."""
     _print_banner()
     try:
         from .browser_signup import auto_farm_one
@@ -656,7 +656,6 @@ def _run_browser_farm(count: int, headed: bool = False,
         return 1
 
     import time as _time
-    capsolver_key = _load_capsolver_key()
     proxies = _load_all_proxies()
     if proxies:
         console.print(f"  [dim]Proxies loaded:[/dim] [cyan]{len(proxies)}[/cyan] [dim](rotating per account)[/dim]")
@@ -672,16 +671,15 @@ def _run_browser_farm(count: int, headed: bool = False,
         result = None
         # Retry once on rate-limit with a longer cooldown.
         for attempt in (1, 2):
-            client = TokenHarborClient(capsolver_key=capsolver_key, proxy=proxy)
             try:
-                result = auto_farm_one(client, headless=not headed, proxy=proxy,
+                result = auto_farm_one(headless=not headed, proxy=proxy,
                                        email_provider=email_provider)
             except Exception as e:
                 console.print(f"[red]✗ Failed:[/red] {e}")
                 result = {"ok": False, "stage": "exception", "error": str(e)}
             if result.get("ok"):
                 break
-            err = (result.get("error") or "").lower()
+            err = str(result.get("error") or "").lower()
             rate_limited = any(s in err for s in
                                ("take a breath", "too fast", "try again",
                                 "rate limit", "slow down"))
@@ -864,7 +862,7 @@ def _parse_args():
     p.add_argument("--email", required=True); p.add_argument("--password", required=True)
 
     p = sub.add_parser("browser-farm",
-                       help="Full-auto farm via real Chromium (signup in browser, rest via HTTP)")
+                       help="Full-auto farm via real Chromium (signup, verify and API key all in browser)")
     p.add_argument("--count", type=int, default=1, help="Accounts to farm")
     p.add_argument("--headed", action="store_true",
                    help="Show the browser window (default headless)")
