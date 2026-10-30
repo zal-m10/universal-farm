@@ -914,6 +914,127 @@ def menu_tokenharbor():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+
+# --- GSuite accounts for Nscale farm (bulk / single entry) ---
+# Stored in the same accounts.txt the Nscale farm script reads:
+# one email:password per line, file mode 600. Passwords are never
+# printed or logged; only email counts and names are shown.
+def _nscale_accounts_path() -> Path:
+    base = Path(os.environ.get("NSCALE_DIR", "/root/nscale-farm"))
+    base.mkdir(parents=True, exist_ok=True)
+    return base / "accounts.txt"
+
+
+def _load_nscale_accounts() -> list[tuple[str, str]]:
+    path = _nscale_accounts_path()
+    if not path.exists():
+        return []
+    accounts: list[tuple[str, str]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or ":" not in line:
+            continue
+        email, password = line.split(":", 1)
+        email, password = email.strip().lower(), password.strip()
+        if email and password:
+            accounts.append((email, password))
+    return accounts
+
+
+def _add_nscale_accounts(new: list[tuple[str, str]]) -> tuple[int, int]:
+    """Append new accounts, skipping emails already stored. Returns (added, skipped)."""
+    existing = _load_nscale_accounts()
+    seen = {e for e, _ in existing}
+    added = 0
+    for email, password in new:
+        if email in seen:
+            continue
+        existing.append((email, password))
+        seen.add(email)
+        added += 1
+    path = _nscale_accounts_path()
+    path.write_text("".join(f"{e}:{pw}" + chr(10) for e, pw in existing), encoding="utf-8")
+    try:
+        os.chmod(path, 0o600)
+    except Exception:
+        pass
+    return added, len(new) - added
+
+
+def menu_setup_gsuite():
+    """Submenu: enter GSuite accounts for Nscale farming, bulk or single."""
+    while True:
+        _clear_screen()
+        accounts = _load_nscale_accounts()
+        console.print(Panel("[bold white]Setup GSuite Accounts (Nscale)[/bold white]",
+                            subtitle=f"{len(accounts)} akun tersimpan", expand=False))
+        console.print()
+        menu = Table(show_header=False, box=None, padding=(0, 2))
+        menu.add_column("key", width=5, justify="right")
+        menu.add_column("label", style="white")
+        menu.add_column("hint", style="dim")
+        menu.add_row("[1]", "Bulk", "banyak email, satu password untuk semua")
+        menu.add_row("[2]", "Single", "satu email, satu password")
+        menu.add_row("[3]", "Lihat akun", "daftar email tersimpan (tanpa password)")
+        menu.add_row("[0]", "Back", "")
+        console.print(menu, justify="center")
+        console.print()
+        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3"],
+                            default="0", show_choices=False, show_default=False)
+        if choice == "0":
+            return
+        if choice == "3":
+            console.print(f"[dim]File: {_nscale_accounts_path()}[/dim]")
+            if not accounts:
+                console.print("[yellow]Belum ada akun tersimpan.[/yellow]")
+            for i, (email, _pw) in enumerate(accounts, 1):
+                console.print(f"  {i}. {email}")
+            Prompt.ask("Press Enter to continue", default="")
+            continue
+        if choice == "1":
+            console.print("[dim]Masukkan email satu per satu, kosongkan untuk selesai.[/dim]")
+            emails: list[str] = []
+            while True:
+                email = Prompt.ask("Email", default="").strip().lower()
+                if not email:
+                    break
+                if "@" not in email:
+                    console.print("[red]Email tidak valid, dilewati.[/red]")
+                    continue
+                if email not in emails:
+                    emails.append(email)
+            if not emails:
+                console.print("[yellow]Tidak ada email dimasukkan.[/yellow]")
+                Prompt.ask("Press Enter to continue", default="")
+                continue
+            password = Prompt.ask("Password untuk semua akun di atas", password=True)
+            if not password:
+                console.print("[yellow]Password kosong, dibatalkan.[/yellow]")
+                Prompt.ask("Press Enter to continue", default="")
+                continue
+            if not Confirm.ask(f"Simpan {len(emails)} akun dengan password yang sama?", default=True):
+                continue
+            added, skipped = _add_nscale_accounts([(e, password) for e in emails])
+            console.print(f"[green]Tersimpan: {added} baru, {skipped} sudah ada.[/green]")
+            Prompt.ask("Press Enter to continue", default="")
+        else:
+            email = Prompt.ask("Email").strip().lower()
+            if "@" not in email:
+                console.print("[red]Email tidak valid.[/red]")
+                Prompt.ask("Press Enter to continue", default="")
+                continue
+            password = Prompt.ask("Password", password=True)
+            if not password:
+                console.print("[yellow]Password kosong, dibatalkan.[/yellow]")
+                Prompt.ask("Press Enter to continue", default="")
+                continue
+            added, skipped = _add_nscale_accounts([(email, password)])
+            if added:
+                console.print(f"[green]Akun {email} tersimpan.[/green]")
+            else:
+                console.print(f"[yellow]Akun {email} sudah ada, dilewati.[/yellow]")
+            Prompt.ask("Press Enter to continue", default="")
+
 # Mistral farm submenu
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -2936,7 +3057,7 @@ def main():
         menu.add_column("label", style="white")
         menu.add_column("hint", style="dim")
         # Gradient numbers: sample FARM_GRADIENT across the menu items.
-        _nums = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "0"]
+        _nums = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "0"]
         def _gnum(n):
             idx = _nums.index(n)
             t = idx / max(len(_nums) - 1, 1)
@@ -2962,10 +3083,11 @@ def main():
         menu.add_row(_gnum("8"), "Setup Bot Tele", "Telegram notifications")
         menu.add_row(_gnum("9"), "Uninstall", "remove farm completely")
         menu.add_row(_gnum("10"), "Setup capsolver", "shared by all farms")
+        menu.add_row(_gnum("11"), "Setup GSuite accounts", "Nscale: bulk / single email + password")
         menu.add_row(_gnum("0"), "Exit", "")
         console.print(menu, justify="center")
         console.print()
-        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"],
                             default="1", show_choices=False, show_default=False)
         if choice == "1":
             menu_tokenharbor()
@@ -2987,6 +3109,8 @@ def main():
             menu_uninstall()
         elif choice == "10":
             menu_setup_capsolver()
+        elif choice == "11":
+            menu_setup_gsuite()
         else:
             console.print("\nBye.")
             break

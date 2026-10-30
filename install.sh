@@ -63,6 +63,25 @@ else
     fi
 fi
 
+# 4b. Real Google Chrome (needed by Nscale farm).
+# Nscale onboarding rejects Playwright Chromium (403 Access denied) but
+# accepts real Google Chrome, so Chrome must be present on first install.
+echo "[4b/5] Installing Google Chrome (real Chrome, not Chromium)..."
+if [ "$IS_TERMUX" -eq 1 ]; then
+    echo "Skipped on Termux (Chrome does not run on Android)."
+elif command -v google-chrome >/dev/null 2>&1; then
+    echo "Google Chrome already installed: $(google-chrome --version)"
+elif command -v apt-get >/dev/null 2>&1; then
+    cd /tmp
+    curl -fsSL -o google-chrome-stable_current_amd64.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+    $SUDO dpkg -i google-chrome-stable_current_amd64.deb || true
+    $SUDO apt-get install -f -y -qq || true
+    rm -f google-chrome-stable_current_amd64.deb
+    google-chrome --version || echo "WARNING: Google Chrome install failed — Nscale farm needs real Chrome, install it manually and re-run."
+else
+    echo "apt-get not found — install Google Chrome manually, Nscale farm needs real Chrome."
+fi
+
 # 5. Install the `farm` command.
 echo "[5/5] Installing 'farm' command..."
 FARM_BIN="/usr/local/bin/farm"
