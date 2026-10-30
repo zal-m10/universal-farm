@@ -36,7 +36,7 @@ def main():
     print(f"[monitor] Watching Nscale farm PID {farm_pid}...", flush=True)
     sys.path.insert(0, str(REPO_DIR))
     from tools.tokenharbor.farm_tui import (
-        _inject_nscale_to_9router, _load_state, _get_nscale_results,
+        _inject_nscale_to_9router, _inject_nscale_to_omniroute, _load_state, _get_nscale_results,
         _notify_farm_done, NOTIFY_CHUNK)
     sent = set()
 
@@ -70,6 +70,9 @@ def main():
     if state.get("nscale_auto_inject", False):
         added, skipped, err = _inject_nscale_to_9router()
         print(f"[monitor] Inject: {added} added, {skipped} skipped, err={err}", flush=True)
+    if state.get("nscale_auto_inject_omniroute", False):
+        added, skipped, err = _inject_nscale_to_omniroute()
+        print(f"[monitor] Inject OmniRoute: {added} added, {skipped} skipped, err={err}", flush=True)
     try:
         results = _get_nscale_results()
         fresh = _fresh(results)

@@ -269,19 +269,19 @@ def _gonka_header():
 
 NSCALE_BANNER = r"""
 [bold cyan]
-               ███╗   ██╗███████╗ ██████╗ █████╗ ██╗     ███████╗
-               ████╗  ██║██╔════╝██╔════╝██╔══██╗██║     ██╔════╝
-               ██╔██╗ ██║███████╗██║     ███████║██║     █████╗  
-               ██║╚██╗██║╚════██║██║     ██╔══██║██║     ██╔══╝  
-               ██║ ╚████║███████║╚██████╗██║  ██║███████╗███████╗
-               ╚═╝  ╚═══╝╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝
+ ███╗   ██╗███████╗ ██████╗ █████╗ ██╗     ███████╗
+ ████╗  ██║██╔════╝██╔════╝██╔══██╗██║     ██╔════╝
+ ██╔██╗ ██║███████╗██║     ███████║██║     █████╗  
+ ██║╚██╗██║╚════██║██║     ██╔══██║██║     ██╔══╝  
+ ██║ ╚████║███████║╚██████╗██║  ██║███████╗███████╗
+ ╚═╝  ╚═══╝╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝
 [/bold cyan]
-[bold bright_cyan]              Nscale Farm — Real Chrome • Headed[/bold bright_cyan]
+[bold bright_cyan]Nscale Farm — Real Chrome • Headed[/bold bright_cyan]
 """
 
 
 def _nscale_header():
-    console.print(NSCALE_BANNER)
+    console.print(NSCALE_BANNER, justify="center")
 
 
 
@@ -1161,6 +1161,14 @@ def _inject_nscale_to_9router() -> tuple:
         return 0, 0, str(e)
 
 
+def _inject_nscale_to_omniroute() -> tuple:
+    """Inject Nscale service tokens into OmniRoute custom node. Returns (added, skipped, error)."""
+    entries = [{'api_key': a["service_token"], 'label': a.get("email", "")}
+               for a in _get_nscale_results() if a.get("service_token")]
+    return _inject_entries_to_omniroute(
+        entries, node={'base_url': NSCALE_BASE_URL,
+                        'prefix': 'nsc', 'name': 'Nscale'})
+
 def menu_nscale_run_farm():
     _clear_screen()
     _nscale_header()
@@ -1229,6 +1237,13 @@ def menu_nscale_run_farm():
                 console.print(f"[red]Inject failed: {err}[/red]")
             else:
                 console.print(f"[green]Injected: {added} new, {skipped} already there.[/green]")
+        if state.get("nscale_auto_inject_omniroute", False):
+            console.print("[dim]Auto-injecting to OmniRoute...[/dim]")
+            added, skipped, err = _inject_nscale_to_omniroute()
+            if err:
+                console.print(f"[red]Inject OmniRoute failed: {err}[/red]")
+            else:
+                console.print(f"[green]Injected to OmniRoute: {added} new, {skipped} already there.[/green]")
     if bg_choice == "1":
         # Telegram notification, same format as TokenHarbor/GonkaRouter: only keys from THIS run.
         try:
@@ -1319,16 +1334,30 @@ def menu_nscale_results():
             console.print("[green]OK All Nscale results deleted.[/green]")
         Prompt.ask(chr(10) + "Press Enter to continue", default="")
 
+def menu_nscale_inject_toggle():
+    """Toggle auto-inject targets, same submenu as the other farms."""
+    _menu_inject_targets("Nscale", "nscale_auto_inject", _nscale_header,
+                         _inject_nscale_to_9router, _inject_nscale_to_omniroute)
+
 def menu_nscale():
     """Nscale farm submenu."""
     while True:
         _clear_screen()
         state = _load_state()
         inject_on = state.get("nscale_auto_inject", False)
+        inject_om = state.get("nscale_auto_inject_omniroute", False)
         results = _get_nscale_results()
         _nscale_header()
         console.print()
-        console.print()
+        _proxies = _get_proxies()
+        _running = _count_nscale_running()
+        _inject_txt = (f"9Router {'[green]ON[/green]' if inject_on else '[dim]OFF[/dim]'} · "
+                      f"OmniRoute {'[green]ON[/green]' if inject_om else '[dim]OFF[/dim]'}")
+        console.print(f"[dim]proxy:[/dim] {'[green]' + str(len(_proxies)) + ' set[/green]' if _proxies else '[red]not set[/red]'}   "
+                      f"[dim]running:[/dim] [cyan]{_running}[/cyan]   "
+                      f"[dim]keys:[/dim] [green]{len(results)}[/green]   "
+                      f"[dim]auto-inject:[/dim] {_inject_txt}" + chr(10),
+                      justify="center")
         menu = Table(show_header=False, box=None, padding=(0, 2))
         menu.add_column("key", width=5, justify="right")
         menu.add_column("label", style="white")
@@ -1336,7 +1365,7 @@ def menu_nscale():
         menu.add_row("[1]", "Run farm", "farm Nscale dengan Chrome asli")
         menu.add_row("[2]", "Results", f"{len(results)} akun selesai")
         menu.add_row("[3]", "Setup GSuite accounts", "bulk / single email + password")
-        menu.add_row("[4]", "Auto inject", f"9Router {"ON" if inject_on else "OFF"}")
+        menu.add_row("[4]", "Auto inject", f"9Router {("ON" if inject_on else "OFF")} · OmniRoute {("ON" if inject_om else "OFF")}")
         menu.add_row("[0]", "Back", "")
         console.print(menu, justify="center")
         console.print()
@@ -1350,11 +1379,7 @@ def menu_nscale():
         elif choice == "3":
             menu_setup_gsuite()
         elif choice == "4":
-            state = _load_state()
-            state["nscale_auto_inject"] = not state.get("nscale_auto_inject", False)
-            _save_state(state)
-            console.print(f"[green]Auto inject 9Router: {'ON' if state['nscale_auto_inject'] else 'OFF'}[/green]")
-            Prompt.ask("Press Enter to continue", default="")
+            menu_nscale_inject_toggle()
 
 # Mistral farm submenu
 # ═══════════════════════════════════════════════════════════════════════════════
