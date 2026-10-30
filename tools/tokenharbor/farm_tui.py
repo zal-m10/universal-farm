@@ -281,7 +281,7 @@ NSCALE_BANNER = r"""
 
 
 def _nscale_header():
-    console.print(NSCALE_BANNER)
+    console.print(NSCALE_BANNER, justify="center")
 
 
 
@@ -983,8 +983,8 @@ def menu_setup_gsuite():
     while True:
         _clear_screen()
         accounts = _load_nscale_accounts()
-        console.print(Panel("[bold white]Setup GSuite Accounts (Nscale)[/bold white]",
-                            subtitle=f"{len(accounts)} akun tersimpan", expand=False))
+        _nscale_header()
+        console.print(f"[dim]{len(accounts)} akun tersimpan[/dim]")
         console.print()
         menu = Table(show_header=False, box=None, padding=(0, 2))
         menu.add_column("key", width=5, justify="right")
@@ -1163,7 +1163,8 @@ def _inject_nscale_to_9router() -> tuple:
 
 def menu_nscale_run_farm():
     _clear_screen()
-    console.print(Panel("[bold white]Farm Nscale[/bold white]", subtitle="real Chrome only", expand=False))
+    _nscale_header()
+    console.print()
     import shutil as _shutil
     if not _shutil.which("google-chrome"):
         console.print("[red]Google Chrome tidak ditemukan. Jalankan install.sh lagi (langkah 4b menginstall Chrome).[/red]")
@@ -1303,7 +1304,8 @@ def menu_nscale():
         state = _load_state()
         inject_on = state.get("nscale_auto_inject", False)
         results = _get_nscale_results()
-        console.print(Panel("[bold white]Farm Nscale[/bold white]", subtitle=f"{len(results)} akun selesai | Chrome asli", expand=False))
+        _nscale_header()
+        console.print()
         console.print()
         menu = Table(show_header=False, box=None, padding=(0, 2))
         menu.add_column("key", width=5, justify="right")
