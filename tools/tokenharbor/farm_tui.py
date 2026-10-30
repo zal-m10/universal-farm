@@ -920,7 +920,7 @@ def menu_tokenharbor():
 # one email:password per line, file mode 600. Passwords are never
 # printed or logged; only email counts and names are shown.
 def _nscale_accounts_path() -> Path:
-    base = Path(os.environ.get("NSCALE_DIR", "/root/nscale-farm"))
+    base = Path(os.environ.get("NSCALE_DIR", str(Path.home() / "nscale-farm")))
     base.mkdir(parents=True, exist_ok=True)
     return base / "accounts.txt"
 
@@ -1033,6 +1033,232 @@ def menu_setup_gsuite():
                 console.print(f"[green]Akun {email} tersimpan.[/green]")
             else:
                 console.print(f"[yellow]Akun {email} sudah ada, dilewati.[/yellow]")
+            Prompt.ask("Press Enter to continue", default="")
+
+# --- Nscale farm (Google SSO, real Chrome only) ---
+# The farm script lives in tools/nscale/nscale_farm.py and is run
+# through tools/nscale/batch_farm.py, which forces the proven setup:
+# real Google Chrome, headed under xvfb, fresh visitorId per account,
+# no stealth script. Playwright Chromium is rejected by Nscale
+# onboarding with 403 Access denied, so Chrome is mandatory.
+NSCALE_SCRIPT_DIR = REPO_DIR / "tools" / "nscale"
+NSCALE_BASE_URL = "https://inference.api.nscale.com/v1"
+NSCALE_DEFAULT_MODEL = "Qwen/Qwen3-4B-Thinking-2507"
+
+
+def _nscale_results_path() -> Path:
+    return Path(os.environ.get("NSCALE_DIR", str(Path.home() / "nscale-farm"))) / "nscale_accounts.json"
+
+
+def _get_nscale_results() -> list[dict]:
+    path = _nscale_results_path()
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else [data]
+    except Exception:
+        return []
+
+
+def _nscale_done_emails() -> set[str]:
+    """Emails already farmed: results file plus 9Router Nscale connections."""
+    done = {str(d.get("email", "")).strip().lower() for d in _get_nscale_results() if d.get("email")}
+    try:
+        import sqlite3
+        db = _9r_db_path()
+        if db is not None:
+            conn = sqlite3.connect(str(db))
+            row = conn.execute("SELECT id FROM providerNodes WHERE json_extract(data, '$.baseUrl') = ?", (NSCALE_BASE_URL,)).fetchone()
+            if row:
+                for (name,) in conn.execute("SELECT name FROM providerConnections WHERE provider = ?", (row[0],)):
+                    if name:
+                        done.add(str(name).strip().lower())
+            conn.close()
+    except Exception:
+        pass
+    return done
+
+
+def _inject_nscale_to_9router() -> tuple:
+    """Inject Nscale service tokens into 9Router SQLite. Returns (added, skipped, error)."""
+    import sqlite3, uuid
+    from datetime import datetime, timezone
+    db = _9r_db_path()
+    if db is None:
+        return 0, 0, "9Router is not installed on this server."
+    def now():
+        return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z')
+    try:
+        conn = sqlite3.connect(str(db))
+    except Exception as e:
+        return 0, 0, f"DB open failed: {e}"
+    try:
+        row = None
+        try:
+            row = conn.execute("SELECT id, data FROM providerNodes WHERE json_extract(data, '$.baseUrl') = ?", (NSCALE_BASE_URL,)).fetchone()
+        except Exception:
+            row = None
+        if row:
+            node_id = row[0]
+            try:
+                prefix = (json.loads(row[1]) or {}).get('prefix') or 'nsc'
+            except Exception:
+                prefix = 'nsc'
+        else:
+            node_id = f'openai-compatible-chat-{uuid.uuid4()}'
+            prefix = 'nsc'
+            data = json.dumps({'prefix': prefix, 'apiType': 'chat', 'baseUrl': NSCALE_BASE_URL, 'nodeName': 'Nscale'})
+            conn.execute('INSERT INTO providerNodes (id,type,name,data,createdAt,updatedAt) VALUES (?,?,?,?,?,?)', (node_id, 'openai-compatible', 'Nscale', data, now(), now()))
+            conn.commit()
+        have = set()
+        for (raw,) in conn.execute('SELECT data FROM providerConnections WHERE provider=?', (node_id,)):
+            try:
+                k = (json.loads(raw) or {}).get('apiKey')
+                if k:
+                    have.add(k)
+            except Exception:
+                pass
+        added = skipped = 0
+        for a in _get_nscale_results():
+            key = a.get("service_token")
+            email = str(a.get("email", ""))
+            if not key:
+                continue
+            if key in have:
+                skipped += 1
+                continue
+            name = email.split("@")[0] if "@" in email else email
+            data = json.dumps({'defaultModel': NSCALE_DEFAULT_MODEL, 'apiKey': key, 'testStatus': 'active', 'providerSpecificData': {'prefix': prefix, 'apiType': 'chat', 'baseUrl': NSCALE_BASE_URL, 'nodeName': 'Nscale', 'connectionProxyEnabled': False, 'connectionProxyUrl': '', 'connectionNoProxy': ''}})
+            conn.execute('INSERT INTO providerConnections (id,provider,authType,name,email,priority,isActive,data,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?,?,?,?)', (str(uuid.uuid4()), node_id, 'apikey', name, None, 1, 1, data, now(), now()))
+            conn.commit()
+            have.add(key)
+            added += 1
+        conn.close()
+        return added, skipped, None
+    except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return 0, 0, str(e)
+
+
+def menu_nscale_run_farm():
+    _clear_screen()
+    console.print(Panel("[bold white]Farm Nscale[/bold white]", subtitle="real Chrome only", expand=False))
+    import shutil as _shutil
+    if not _shutil.which("google-chrome"):
+        console.print("[red]Google Chrome tidak ditemukan. Jalankan install.sh lagi (langkah 4b menginstall Chrome).[/red]")
+        Prompt.ask("Press Enter to continue", default="")
+        return
+    accounts = _load_nscale_accounts()
+    if not accounts:
+        console.print("[yellow]Belum ada akun. Isi dulu lewat [3] Setup GSuite accounts.[/yellow]")
+        Prompt.ask("Press Enter to continue", default="")
+        return
+    done = _nscale_done_emails()
+    pending = [(i, e) for i, (e, _pw) in enumerate(accounts, 1) if e not in done and e.split("@")[0] not in done]
+    console.print(f"[dim]Total akun: {len(accounts)} | sudah selesai: {len(accounts) - len(pending)} | pending: {len(pending)}[/dim]")
+    if not pending:
+        console.print("[green]Semua akun sudah selesai.[/green]")
+        Prompt.ask("Press Enter to continue", default="")
+        return
+    count = IntPrompt.ask("How many accounts to farm?", default=len(pending))
+    count = max(1, min(int(count), len(pending)))
+    chosen = pending[:count]
+    console.print(f"[dim]Akan difarm: {', '.join(e for _i, e in chosen)}[/dim]")
+    console.print("[1] Run in foreground (watch live)")
+    console.print("[2] Run in background (survives disconnect)")
+    bg_choice = Prompt.ask("Mode", choices=["1", "2"], default="1", show_choices=False)
+    if not Confirm.ask(f"Start farming {count} account(s) with real Chrome?", default=True):
+        return
+    venv_python = REPO_DIR / ".venv" / "bin" / "python"
+    py = str(venv_python) if venv_python.exists() else sys.executable
+    batch = str(NSCALE_SCRIPT_DIR / "batch_farm.py")
+    indices = ",".join(str(i) for i, _e in chosen)
+    cmd = [py, batch, "--indices", indices, "--delay", "10"]
+    if bg_choice == "2":
+        import datetime as _dt
+        ts = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+        logfile = f"/tmp/nscale-farm-{ts}.log"
+        pidfile = Path("/tmp/nscale-farm.pid")
+        farm_pid = _spawn_detached(cmd, logfile, cwd=str(REPO_DIR))
+        pidfile.write_text(str(farm_pid))
+        console.print(f"[green]Farm started in background (PID {farm_pid}).[/green]")
+        console.print(f"[dim]Log: {logfile}[/dim]")
+        console.print("[dim]Setelah batch selesai, jalankan [4] Auto inject untuk memasukkan token ke 9Router.[/dim]")
+    else:
+        try:
+            subprocess.run(cmd, cwd=str(REPO_DIR))
+        except KeyboardInterrupt:
+            console.print("[yellow]Interrupted.[/yellow]")
+        state = _load_state()
+        if state.get("nscale_auto_inject", False):
+            console.print("[dim]Auto-injecting to 9Router...[/dim]")
+            added, skipped, err = _inject_nscale_to_9router()
+            if err:
+                console.print(f"[red]Inject failed: {err}[/red]")
+            else:
+                console.print(f"[green]Injected: {added} new, {skipped} already there.[/green]")
+    Prompt.ask("Press Enter to continue", default="")
+
+
+def menu_nscale_results():
+    _clear_screen()
+    results = _get_nscale_results()
+    console.print(Panel("[bold white]Nscale Results[/bold white]", subtitle=f"{len(results)} akun selesai", expand=False))
+    if not results:
+        console.print("[yellow]Belum ada hasil farm Nscale.[/yellow]")
+        Prompt.ask("Press Enter to continue", default="")
+        return
+    t = Table(show_header=True, box=None, padding=(0, 2))
+    t.add_column("#", justify="right")
+    t.add_column("Email")
+    t.add_column("Org")
+    t.add_column("Credit")
+    t.add_column("Token len")
+    for i, a in enumerate(results, 1):
+        tok = a.get("service_token", "")
+        t.add_row(str(i), str(a.get("email", "-")), str(a.get("org_name", "-")), str(a.get("credit_usd", "-")), str(len(tok)) if tok else "0")
+    console.print(t)
+    Prompt.ask("Press Enter to continue", default="")
+
+
+def menu_nscale():
+    """Nscale farm submenu."""
+    while True:
+        _clear_screen()
+        state = _load_state()
+        inject_on = state.get("nscale_auto_inject", False)
+        results = _get_nscale_results()
+        console.print(Panel("[bold white]Farm Nscale[/bold white]", subtitle=f"{len(results)} akun selesai | Chrome asli", expand=False))
+        console.print()
+        menu = Table(show_header=False, box=None, padding=(0, 2))
+        menu.add_column("key", width=5, justify="right")
+        menu.add_column("label", style="white")
+        menu.add_column("hint", style="dim")
+        menu.add_row("[1]", "Run farm", "farm Nscale dengan Chrome asli")
+        menu.add_row("[2]", "Results", f"{len(results)} akun selesai")
+        menu.add_row("[3]", "Setup GSuite accounts", "bulk / single email + password")
+        menu.add_row("[4]", "Auto inject", f"9Router {"ON" if inject_on else "OFF"}")
+        menu.add_row("[0]", "Back", "")
+        console.print(menu, justify="center")
+        console.print()
+        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3", "4"], default="0", show_choices=False, show_default=False)
+        if choice == "0":
+            return
+        if choice == "1":
+            menu_nscale_run_farm()
+        elif choice == "2":
+            menu_nscale_results()
+        elif choice == "3":
+            menu_setup_gsuite()
+        elif choice == "4":
+            state = _load_state()
+            state["nscale_auto_inject"] = not state.get("nscale_auto_inject", False)
+            _save_state(state)
+            console.print(f"[green]Auto inject 9Router: {'ON' if state['nscale_auto_inject'] else 'OFF'}[/green]")
             Prompt.ask("Press Enter to continue", default="")
 
 # Mistral farm submenu
@@ -3057,7 +3283,7 @@ def main():
         menu.add_column("label", style="white")
         menu.add_column("hint", style="dim")
         # Gradient numbers: sample FARM_GRADIENT across the menu items.
-        _nums = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "0"]
+        _nums = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "0"]
         def _gnum(n):
             idx = _nums.index(n)
             t = idx / max(len(_nums) - 1, 1)
@@ -3084,10 +3310,11 @@ def main():
         menu.add_row(_gnum("9"), "Uninstall", "remove farm completely")
         menu.add_row(_gnum("10"), "Setup capsolver", "shared by all farms")
         menu.add_row(_gnum("11"), "Setup GSuite accounts", "Nscale: bulk / single email + password")
+        menu.add_row(_gnum("12"), "Farm Nscale keys", "Nscale API keys (real Chrome)")
         menu.add_row(_gnum("0"), "Exit", "")
         console.print(menu, justify="center")
         console.print()
-        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"],
+        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"],
                             default="1", show_choices=False, show_default=False)
         if choice == "1":
             menu_tokenharbor()
@@ -3111,6 +3338,8 @@ def main():
             menu_setup_capsolver()
         elif choice == "11":
             menu_setup_gsuite()
+        elif choice == "12":
+            menu_nscale()
         else:
             console.print("\nBye.")
             break
