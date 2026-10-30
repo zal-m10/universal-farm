@@ -317,7 +317,7 @@ def _set_capsolver(key: str) -> None:
 
 
 def menu_setup_capsolver():
-    _clear_screen(); _harbor_header()
+    _clear_screen(); _header()
     state = _load_state()
     enabled = state.get("capsolver_enabled", bool(_get_capsolver()))
     current = _get_capsolver()
@@ -983,7 +983,7 @@ def menu_setup_gsuite():
     while True:
         _clear_screen()
         accounts = _load_nscale_accounts()
-        _nscale_header()
+        _header()
         console.print(f"[dim]{len(accounts)} akun tersimpan[/dim]")
         console.print()
         menu = Table(show_header=False, box=None, padding=(0, 2))
