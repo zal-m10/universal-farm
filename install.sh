@@ -107,8 +107,8 @@ echo "Type  'farm'  to open the interactive menu."
 echo ""
 echo "First steps inside the menu:"
 echo "  [1] Farm TokenHarbor -> [3] Setup email  (Tempik URL or Temp Mail)"
-echo "  [6] Setup Proxy      -> user:pass@host:port (one per line)"
-echo "  [7] Setup Bot Tele   -> Telegram notifications (optional)"
+echo "  [8] Setup Proxy      -> user:pass@host:port (one per line)"
+echo "  [9] Setup Bot Tele   -> Telegram notifications (optional)"
 echo "  [1] Farm TokenHarbor -> [1] Run farm"
 
 # 6. Verify critical files are in place (fresh-install smoke test).

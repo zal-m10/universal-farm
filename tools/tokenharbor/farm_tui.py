@@ -1,7 +1,7 @@
 """Interactive TUI for TokenHarbor + Mistral farming.
 
 Launched via the `farm` command after running install.sh.
-Main menu: Farm TokenHarbor | Farm Mistral keys | Parallel farm |
+Main menu: Farm TokenHarbor | Farm Mistral | Farm Dahl | Farm GonkaRouter | Farm Nscale |
            Delay setting | Setup Proxy
 Each farm has its own submenu with Run farm / Results.
 """
@@ -3303,14 +3303,14 @@ def main():
         menu.add_row(_gnum("2"), "Farm Mistral keys", "Mistral API key farming")
         menu.add_row(_gnum("3"), "Farm Dahl keys", "Dahl Inference API keys")
         menu.add_row(_gnum("4"), "Farm GonkaRouter keys", "GonkaRouter API keys (email + OTP)")
-        menu.add_row(_gnum("5"), "Parallel farm", "run farms in background")
-        menu.add_row(_gnum("6"), "Delay setting", f"currently {state['delay']}s")
-        menu.add_row(_gnum("7"), "Setup Proxy", f"{len(proxies)} configured" if proxies else "not configured")
-        menu.add_row(_gnum("8"), "Setup Bot Tele", "Telegram notifications")
-        menu.add_row(_gnum("9"), "Uninstall", "remove farm completely")
-        menu.add_row(_gnum("10"), "Setup capsolver", "shared by all farms")
-        menu.add_row(_gnum("11"), "Setup GSuite accounts", "Nscale: bulk / single email + password")
-        menu.add_row(_gnum("12"), "Farm Nscale keys", "Nscale API keys (real Chrome)")
+        menu.add_row(_gnum("5"), "Farm Nscale keys", "Nscale API keys (real Chrome)")
+        menu.add_row(_gnum("6"), "Parallel farm", "run farms in background")
+        menu.add_row(_gnum("7"), "Delay setting", f"currently {state['delay']}s")
+        menu.add_row(_gnum("8"), "Setup Proxy", f"{len(proxies)} configured" if proxies else "not configured")
+        menu.add_row(_gnum("9"), "Setup Bot Tele", "Telegram notifications")
+        menu.add_row(_gnum("10"), "Uninstall", "remove farm completely")
+        menu.add_row(_gnum("11"), "Setup capsolver", "shared by all farms")
+        menu.add_row(_gnum("12"), "Setup GSuite accounts", "Nscale: bulk / single email + password")
         menu.add_row(_gnum("0"), "Exit", "")
         console.print(menu, justify="center")
         console.print()
@@ -3325,21 +3325,21 @@ def main():
         elif choice == "4":
             menu_gonka()
         elif choice == "5":
-            menu_parallel_farm()
-        elif choice == "6":
-            menu_delay_setting()
-        elif choice == "7":
-            menu_setup_proxy()
-        elif choice == "8":
-            menu_setup_telegram()
-        elif choice == "9":
-            menu_uninstall()
-        elif choice == "10":
-            menu_setup_capsolver()
-        elif choice == "11":
-            menu_setup_gsuite()
-        elif choice == "12":
             menu_nscale()
+        elif choice == "6":
+            menu_parallel_farm()
+        elif choice == "7":
+            menu_delay_setting()
+        elif choice == "8":
+            menu_setup_proxy()
+        elif choice == "9":
+            menu_setup_telegram()
+        elif choice == "10":
+            menu_uninstall()
+        elif choice == "11":
+            menu_setup_capsolver()
+        elif choice == "12":
+            menu_setup_gsuite()
         else:
             console.print("\nBye.")
             break
