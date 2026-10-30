@@ -269,19 +269,19 @@ def _gonka_header():
 
 NSCALE_BANNER = r"""
 [bold cyan]
- ███╗   ██╗███████╗ ██████╗ █████╗ ██╗     ███████╗
- ████╗  ██║██╔════╝██╔════╝██╔══██╗██║     ██╔════╝
- ██╔██╗ ██║███████╗██║     ███████║██║     █████╗  
- ██║╚██╗██║╚════██║██║     ██╔══██║██║     ██╔══╝  
- ██║ ╚████║███████║╚██████╗██║  ██║███████╗███████╗
- ╚═╝  ╚═══╝╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝
+               ███╗   ██╗███████╗ ██████╗ █████╗ ██╗     ███████╗
+               ████╗  ██║██╔════╝██╔════╝██╔══██╗██║     ██╔════╝
+               ██╔██╗ ██║███████╗██║     ███████║██║     █████╗  
+               ██║╚██╗██║╚════██║██║     ██╔══██║██║     ██╔══╝  
+               ██║ ╚████║███████║╚██████╗██║  ██║███████╗███████╗
+               ╚═╝  ╚═══╝╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝
 [/bold cyan]
 [bold bright_cyan]              Nscale Farm — Real Chrome • Headed[/bold bright_cyan]
 """
 
 
 def _nscale_header():
-    console.print(NSCALE_BANNER, justify="center")
+    console.print(NSCALE_BANNER)
 
 
 
@@ -1185,6 +1185,7 @@ def menu_nscale_run_farm():
     count = IntPrompt.ask("How many accounts to farm?", default=len(pending))
     count = max(1, min(int(count), len(pending)))
     chosen = pending[:count]
+    before_tokens = [a.get("service_token", "") for a in _get_nscale_results() if a.get("service_token")]
     console.print(f"[dim]Akan difarm: {', '.join(e for _i, e in chosen)}[/dim]")
     console.print("[1] Run in foreground (watch live)")
     console.print("[2] Run in background (survives disconnect)")
@@ -1206,6 +1207,7 @@ def menu_nscale_run_farm():
         console.print(f"[green]Farm started in background (PID {farm_pid}).[/green]")
         console.print(f"[dim]Log: {logfile}[/dim]")
         console.print("[dim]Setelah batch selesai, jalankan [4] Auto inject untuk memasukkan token ke 9Router.[/dim]")
+        _arm_inject_monitor(str(NSCALE_SCRIPT_DIR / "nscale_inject_monitor.py"), farm_pid, ts, "nscale", count, before_tokens)
     else:
         try:
             subprocess.run(cmd, cwd=str(REPO_DIR))
@@ -1219,6 +1221,18 @@ def menu_nscale_run_farm():
                 console.print(f"[red]Inject failed: {err}[/red]")
             else:
                 console.print(f"[green]Injected: {added} new, {skipped} already there.[/green]")
+    if bg_choice == "1":
+        # Telegram notification, same format as TokenHarbor/GonkaRouter: only keys from THIS run.
+        try:
+            _after = _get_nscale_results()
+            _new = [a for a in _after if a.get("service_token") and a["service_token"] not in before_tokens]
+            _new_keys = [a["service_token"] for a in _new]
+            _success = min(len(_new_keys), count)
+            _notify_farm_done("Nscale", count, _success, count - _success,
+                              _new_keys[:count],
+                              emails=[a.get("email", "") for a in _new[:count]])
+        except Exception:
+            pass
     Prompt.ask("Press Enter to continue", default="")
 
 
@@ -1254,10 +1268,10 @@ def menu_nscale_results():
         t.add_column("Email", style="magenta")
         t.add_column("Org", style="cyan")
         t.add_column("Credit", style="yellow")
-        t.add_column("Token len", style="green")
+        t.add_column("API key", style="green")
         for i, a in enumerate(results, 1):
             tok = a.get("service_token", "")
-            t.add_row(str(i), str(a.get("email", "-")), str(a.get("org_name", "-")), str(a.get("credit_usd", "-")), str(len(tok)) if tok else "0")
+            t.add_row(str(i), str(a.get("email", "-")), str(a.get("org_name", "-")), str(a.get("credit_usd", "-")), str(a.get("service_token", "-")))
         console.print(t)
     elif not results and running == 0:
         console.print("[dim]No results yet. Run farm first.[/dim]")
@@ -1282,7 +1296,7 @@ def menu_nscale_results():
         kf.write_text(text + chr(10))
         console.print(f"[green]OK {len(results)} keys saved to {kf}[/green]")
         for a in results:
-            console.print("  " + str(a.get("email", "?")) + ": token len " + str(len(str(a.get("service_token", "")))))
+            console.print(str(a.get("service_token", "")))
         Prompt.ask(chr(10) + "Press Enter to continue", default="")
     elif action == "d" and results:
         if Confirm.ask(chr(10) + "[red]Delete ALL Nscale results?[/red]", default=False):
@@ -3150,6 +3164,7 @@ _INJECT_STATE_KEYS = {
     "TokenHarbor": "tokenharbor_auto_inject",
     "Mistral": "mistral_auto_inject",
     "Dahl": "dahl_auto_inject",
+    "Nscale": "nscale_auto_inject",
 }
 
 
@@ -3192,6 +3207,7 @@ def _notify_farm_done(provider: str, total: int, success: int, failed: int,
     _base_urls = {
         "TokenHarbor": "https://tokenharbor.ai/v1",
         "GonkaRouter": "https://api.gonkarouter.io/v1",
+        "Nscale": "https://inference.api.nscale.com/v1",
     }
     base_url = _base_urls.get(provider, "")
 
