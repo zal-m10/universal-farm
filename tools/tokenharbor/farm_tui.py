@@ -1177,6 +1177,14 @@ def menu_nscale_run_farm():
         return
     done = _nscale_done_emails()
     pending = [(i, e) for i, (e, _pw) in enumerate(accounts, 1) if e not in done and e.split("@")[0] not in done]
+    _proxies = _get_proxies()
+    console.print(f"[dim]Proxy: {len(_proxies)} (rotating)[/dim]" if _proxies else "[dim]Proxy: none (direct)[/dim]")
+    if not _proxies:
+        console.print("[yellow]No proxy configured.[/yellow]")
+        if not Confirm.ask("Run without proxy?", default=True):
+            console.print("Cancelled. Set proxies via main menu [magenta]Setup Proxy[/magenta].")
+            Prompt.ask("Press Enter to continue", default="")
+            return
     console.print(f"[dim]Total akun: {len(accounts)} | sudah selesai: {len(accounts) - len(pending)} | pending: {len(pending)}[/dim]")
     if not pending:
         console.print("[green]Semua akun sudah selesai.[/green]")

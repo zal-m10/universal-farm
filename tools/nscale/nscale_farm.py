@@ -86,6 +86,16 @@ def _proxy():
     """
     raw = os.environ.get("NSCALE_PROXY", "").strip()
     if not raw:
+        # Fallback, like the other farms scripts: read the TUI-managed proxies file.
+        try:
+            import random as _random
+            _pfile = Path(__file__).resolve().parent.parent / "proxies.txt"
+            _lines = [x.strip() for x in _pfile.read_text(encoding="utf-8").splitlines() if x.strip() and not x.strip().startswith("#")]
+            if _lines:
+                raw = _random.choice(_lines)
+        except Exception:
+            raw = ""
+    if not raw:
         return None
     if "://" in raw:
         raw = raw.split("://", 1)[1]

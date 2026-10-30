@@ -8,10 +8,14 @@ plus a batch summary at the end; the TUI background mode captures
 this output to a log file.
 
 Usage: python batch_farm.py --indices 2,3,4 [--delay 10]
+Proxies: the TUI-managed tools/proxies.txt file (same file the other farms read);
+one proxy is picked at random per account, unless NSCALE_PROXY is already set in the
+environment, in which case that proxy is used for every account.
 """
 from __future__ import annotations
 
 import argparse
+import random
 import json
 import os
 import shutil
@@ -23,6 +27,20 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 FARM_SCRIPT = HERE / "nscale_farm.py"
 
+
+
+
+def _load_proxies() -> list[str]:
+    """Proxies from the TUI-managed tools/proxies.txt file (one per line)."""
+    path = HERE.parent / "proxies.txt"
+    if not path.exists():
+        return []
+    out = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            out.append(line)
+    return out
 
 def _base_dir() -> Path:
     return Path(os.environ.get("NSCALE_DIR", str(Path.home() / "nscale-farm")))
@@ -87,6 +105,11 @@ def main() -> int:
         if pos > 0 and args.delay > 0:
             time.sleep(args.delay)
         env = dict(os.environ)
+        if not env.get("NSCALE_PROXY", "").strip():
+            _proxies = _load_proxies()
+            if _proxies:
+                env["NSCALE_PROXY"] = random.choice(_proxies)
+        print(f"BATCH: proxy {"ON" if env.get("NSCALE_PROXY", "").strip() else "OFF"} for index {idx}", flush=True)
         env["NSCALE_BROWSER"] = "chrome"
         env["NSCALE_ROUTE"] = "1"
         env["NSCALE_STEALTH"] = "0"
