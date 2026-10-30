@@ -1180,7 +1180,7 @@ def menu_nscale_run_farm():
         return
     accounts = _load_nscale_accounts()
     if not accounts:
-        console.print("[yellow]Belum ada akun. Isi dulu lewat [3] Setup GSuite accounts.[/yellow]")
+        console.print("[yellow]Belum ada akun. Isi dulu lewat menu utama [12] Setup GSuite accounts.[/yellow]")
         Prompt.ask("Press Enter to continue", default="")
         return
     done = _nscale_done_emails()
@@ -1365,12 +1365,11 @@ def menu_nscale():
         menu.add_column("hint", style="dim")
         menu.add_row("[1]", "Run farm", "farm Nscale dengan Chrome asli")
         menu.add_row("[2]", "Results", f"{len(results)} akun selesai")
-        menu.add_row("[3]", "Setup GSuite accounts", "bulk / single email + password")
-        menu.add_row("[4]", "Auto inject", f"9Router {("ON" if inject_on else "OFF")} · OmniRoute {("ON" if inject_om else "OFF")}")
+        menu.add_row("[3]", "Auto inject", f"9Router {("ON" if inject_on else "OFF")} · OmniRoute {("ON" if inject_om else "OFF")}")
         menu.add_row("[0]", "Back", "")
         console.print(menu, justify="center")
         console.print()
-        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3", "4"], default="0", show_choices=False, show_default=False)
+        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3"], default="0", show_choices=False, show_default=False)
         if choice == "0":
             return
         if choice == "1":
@@ -1378,8 +1377,6 @@ def menu_nscale():
         elif choice == "2":
             menu_nscale_results()
         elif choice == "3":
-            menu_setup_gsuite()
-        elif choice == "4":
             menu_nscale_inject_toggle()
 
 # Mistral farm submenu
