@@ -1335,47 +1335,10 @@ def menu_nscale_results():
         Prompt.ask(chr(10) + "Press Enter to continue", default="")
 
 def menu_nscale_inject_toggle():
-    """Toggle auto-inject targets, same submenu as the other farms,
-    but without requiring the target to be installed on this server.
-    The toggle is a saved preference; inject itself runs at farm time."""
-    _nscale_header()
-    console.print()
-    state = _load_state()
-    cur_9r = state.get("nscale_auto_inject", False)
-    cur_om = state.get("nscale_auto_inject_omniroute", False)
-    def txt(v):
-        return "[green]ON[/green]" if v else "[dim]OFF[/dim]"
-    console.print(chr(10) + "Auto inject targets for Nscale:")
-    console.print(f"  9Router:   {txt(cur_9r)}")
-    console.print(f"  OmniRoute: {txt(cur_om)}")
-    console.print("[dim]Keys are injected to every target that is ON "
-                  "(both can be ON).[/dim]" + chr(10))
-    console.print(f"[1] Turn {"OFF" if cur_9r else "ON"} 9Router")
-    console.print(f"[2] Turn {"OFF" if cur_om else "ON"} OmniRoute")
-    console.print("[0] Back" + chr(10))
-    choice = Prompt.ask("Select", choices=["0", "1", "2"], default="0",
-                        show_choices=False)
-    if choice == "1":
-        state["nscale_auto_inject"] = not cur_9r
-        _save_state(state)
-        console.print(chr(10) + f"[green]Auto inject 9Router: {"ON" if not cur_9r else "OFF"}[/green]")
-        if not cur_9r:
-            added, skipped, err = _inject_nscale_to_9router()
-            if err:
-                console.print(f"[red]Inject failed: {err}[/red]")
-            else:
-                console.print(f"[dim]Injected now: {added} added, {skipped} already there.[/dim]")
-    elif choice == "2":
-        state["nscale_auto_inject_omniroute"] = not cur_om
-        _save_state(state)
-        console.print(chr(10) + f"[green]Auto inject OmniRoute: {"ON" if not cur_om else "OFF"}[/green]")
-        if not cur_om:
-            added, skipped, err = _inject_nscale_to_omniroute()
-            if err:
-                console.print(f"[red]Inject failed: {err}[/red]")
-            else:
-                console.print(f"[dim]Injected now: {added} added, {skipped} already there.[/dim]")
-    Prompt.ask(chr(10) + "Press Enter to continue", default="")
+    """Toggle auto-inject targets, same as the other farms."""
+    _clear_screen()
+    _menu_inject_targets("Nscale", "nscale_auto_inject", _nscale_header,
+                         _inject_nscale_to_9router, _inject_nscale_to_omniroute)
 
 def menu_nscale():
     """Nscale farm submenu."""
