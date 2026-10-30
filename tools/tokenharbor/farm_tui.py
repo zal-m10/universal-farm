@@ -267,6 +267,23 @@ GONKA_BANNER = r"""
 def _gonka_header():
     console.print(GONKA_BANNER, justify="center")
 
+NSCALE_BANNER = r"""
+[bold cyan]
+ ███╗   ██╗███████╗ ██████╗ █████╗ ██╗     ███████╗
+ ████╗  ██║██╔════╝██╔════╝██╔══██╗██║     ██╔════╝
+ ██╔██╗ ██║███████╗██║     ███████║██║     █████╗  
+ ██║╚██╗██║╚════██║██║     ██╔══██║██║     ██╔══╝  
+ ██║ ╚████║███████║╚██████╗██║  ██║███████╗███████╗
+ ╚═╝  ╚═══╝╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝
+[/bold cyan]
+[bold bright_cyan]              Nscale Farm — Real Chrome • Headed[/bold bright_cyan]
+"""
+
+
+def _nscale_header():
+    console.print(NSCALE_BANNER)
+
+
 
 def _harbor_header():
     console.print(HARBOR_BANNER)
@@ -1204,26 +1221,80 @@ def menu_nscale_run_farm():
     Prompt.ask("Press Enter to continue", default="")
 
 
-def menu_nscale_results():
-    _clear_screen()
-    results = _get_nscale_results()
-    console.print(Panel("[bold white]Nscale Results[/bold white]", subtitle=f"{len(results)} akun selesai", expand=False))
-    if not results:
-        console.print("[yellow]Belum ada hasil farm Nscale.[/yellow]")
-        Prompt.ask("Press Enter to continue", default="")
-        return
-    t = Table(show_header=True, box=None, padding=(0, 2))
-    t.add_column("#", justify="right")
-    t.add_column("Email")
-    t.add_column("Org")
-    t.add_column("Credit")
-    t.add_column("Token len")
-    for i, a in enumerate(results, 1):
-        tok = a.get("service_token", "")
-        t.add_row(str(i), str(a.get("email", "-")), str(a.get("org_name", "-")), str(a.get("credit_usd", "-")), str(len(tok)) if tok else "0")
-    console.print(t)
-    Prompt.ask("Press Enter to continue", default="")
+def _count_nscale_running() -> int:
+    """Count running Nscale batch_farm.py processes (single farm runs use the same batch script)."""
+    try:
+        out = subprocess.run(["pgrep", "-f", "batch_farm.py"], capture_output=True, text=True, timeout=5)
+        pids = [x for x in out.stdout.strip().splitlines() if x.strip()]
+        if pids:
+            return len(pids)
+        out = subprocess.run(["pgrep", "-f", "nscale_farm.py"], capture_output=True, text=True, timeout=5)
+        return len([x for x in out.stdout.strip().splitlines() if x.strip()])
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return 0
 
+def menu_nscale_results():
+    _clear_screen(); _nscale_header()
+    console.print()
+    results = _get_nscale_results()
+    running = _count_nscale_running()
+    try:
+        total = len(_load_nscale_accounts())
+    except Exception:
+        total = len(results)
+    if not total:
+        total = len(results)
+    console.print(f"[bold]Running: [cyan]{running}[/cyan] | "
+                  f"[green]Success: {len(results)}[/green] | "
+                  f"[dim]Total: {total}[/dim][/bold]" + chr(10))
+    if results:
+        t = Table(title="Nscale API keys", show_lines=True)
+        t.add_column("#", style="dim", width=3)
+        t.add_column("Email", style="magenta")
+        t.add_column("Org", style="cyan")
+        t.add_column("Credit", style="yellow")
+        t.add_column("Token len", style="green")
+        for i, a in enumerate(results, 1):
+            tok = a.get("service_token", "")
+            t.add_row(str(i), str(a.get("email", "-")), str(a.get("org_name", "-")), str(a.get("credit_usd", "-")), str(len(tok)) if tok else "0")
+        console.print(t)
+    elif not results and running == 0:
+        console.print("[dim]No results yet. Run farm first.[/dim]")
+
+    # Actions, same pattern as the other farms.
+    from rich.text import Text as _Text
+    console.print()
+    bar = _Text()
+    if results:
+        bar.append("[c] ", style="bold cyan")
+        bar.append("Copy all API  ")
+        bar.append("[d] ", style="bold cyan")
+        bar.append("Delete all results  ")
+    bar.append("[Enter] ", style="bold cyan")
+    bar.append("Back")
+    console.print(bar)
+    choices = ["c", "d", ""] if results else [""]
+    action = Prompt.ask("Action", choices=choices, default="", show_choices=False)
+    if action == "c" and results:
+        text = chr(10).join(str(a.get("service_token", "")) for a in results)
+        kf = Path("/root/nscale_keys_export.txt")
+        kf.write_text(text + chr(10))
+        console.print(f"[green]OK {len(results)} keys saved to {kf}[/green]")
+        for a in results:
+            console.print("  " + str(a.get("email", "?")) + ": token len " + str(len(str(a.get("service_token", "")))))
+        Prompt.ask(chr(10) + "Press Enter to continue", default="")
+    elif action == "d" and results:
+        if Confirm.ask(chr(10) + "[red]Delete ALL Nscale results?[/red]", default=False):
+            _nscale_results_path().unlink(missing_ok=True)
+            Path("/root/nscale_keys_export.txt").unlink(missing_ok=True)
+            Path("/tmp/nscale-farm.pid").unlink(missing_ok=True)
+            for log in Path("/tmp").glob("nscale-farm-*.log"):
+                try:
+                    log.unlink()
+                except OSError:
+                    pass
+            console.print("[green]OK All Nscale results deleted.[/green]")
+        Prompt.ask(chr(10) + "Press Enter to continue", default="")
 
 def menu_nscale():
     """Nscale farm submenu."""
