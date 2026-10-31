@@ -56,12 +56,12 @@ def main():
             while len(fresh) >= NOTIFY_CHUNK:
                 chunk = fresh[:NOTIFY_CHUNK]
                 prog = f"{len(sent)+len(chunk)}/{count}" if count else f"{len(sent)+len(chunk)}"
-                _notify_farm_done("Nscale", NOTIFY_CHUNK, NOTIFY_CHUNK, 0,
-                                  [a["service_token"] for a in chunk],
-                                  progress=prog, emails=_emails(chunk))
+                _ok = _notify_farm_done("Nscale", NOTIFY_CHUNK, NOTIFY_CHUNK, 0,
+                                        [a["service_token"] for a in chunk],
+                                        progress=prog, emails=_emails(chunk))
                 sent.update(a["service_token"] for a in chunk)
                 fresh = fresh[NOTIFY_CHUNK:]
-                print(f"[monitor] Progress sent: {len(sent)} keys.", flush=True)
+                print(f"[monitor] Progress {'sent' if _ok else 'FAILED'}: {len(sent)} keys.", flush=True)
         except Exception as e:
             print(f"[monitor] Progress check failed: {e}", flush=True)
         time.sleep(20)
@@ -78,11 +78,11 @@ def main():
         fresh = _fresh(results)
         total_done = len(sent) + len(fresh)
         failed = max(0, count - total_done) if count else 0
-        _notify_farm_done("Nscale", count if count else total_done,
-                          total_done, failed,
-                          [a["service_token"] for a in fresh],
-                          emails=_emails(fresh))
-        print("[monitor] Telegram sent.", flush=True)
+        _ok = _notify_farm_done("Nscale", count if count else total_done,
+                                total_done, failed,
+                                [a["service_token"] for a in fresh],
+                                emails=_emails(fresh))
+        print("[monitor] Telegram sent." if _ok else "[monitor] Telegram FAILED.", flush=True)
     except Exception as e:
         print(f"[monitor] Telegram failed: {e}", flush=True)
 

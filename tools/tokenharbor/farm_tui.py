@@ -1316,9 +1316,11 @@ def menu_nscale_run_farm():
             _new = [a for a in _after if a.get("service_token") and a["service_token"] not in before_tokens]
             _new_keys = [a["service_token"] for a in _new]
             _success = min(len(_new_keys), count)
-            _notify_farm_done("Nscale", count, _success, count - _success,
-                              _new_keys[:count],
-                              emails=[a.get("email", "") for a in _new[:count]])
+            _ok = _notify_farm_done("Nscale", count, _success, count - _success,
+                                    _new_keys[:count],
+                                    emails=[a.get("email", "") for a in _new[:count]])
+            if not _ok:
+                console.print("[red]Telegram notification failed.[/red]")
         except Exception:
             pass
     Prompt.ask("Press Enter to continue", default="")
@@ -3289,11 +3291,17 @@ def _notify_farm_done(provider: str, total: int, success: int, failed: int,
                       keys: list = None, progress: str = None,
                       emails: list = None):
     """Send farm completion notification to Telegram if configured.
-    If progress is set (e.g. "150/1000"), title shows progress instead."""
+    If progress is set (e.g. "150/1000"), title shows progress instead.
+    Telegram sendMessage is limited to 4096 chars, so long key lists are
+    split into several messages: at most 3 keys per message for Nscale
+    (its keys are 1207 chars each), and no message over 3900 chars for
+    any provider (3 Nscale keys + header is ~3790 chars, plus ~130 chars
+    of Telegram emoji tags, still under the 4096 limit). Returns True
+    only if every part was sent."""
     import html as _html
     state = _load_state()
     if not state.get("telegram_bot_token") or not state.get("telegram_chat_id"):
-        return
+        return False
     inject_on = state.get(_INJECT_STATE_KEYS.get(provider, ""), False)
     inject_txt = "ON✓" if inject_on else "OFF<b>✗</b>"
     inject_om = state.get(_INJECT_STATE_KEYS.get(provider, "") + "_omniroute", False)
@@ -3308,27 +3316,54 @@ def _notify_farm_done(provider: str, total: int, success: int, failed: int,
     base_url = _base_urls.get(provider, "")
 
     title = f"✓Farm Selesai — {provider}" if not progress else f"Farm Progress — {provider} ({progress})"
-    text = (
-        f"{title}\n"
-        f"\n"
-        f"{len(keys or [])} API Key:\n"
-        f"Total:{total} | ✓Success:{success} | <b>✗</b>Failed:{failed}\n"
-    )
-    if keys:
-        # Code block -> Telegram shows COPY CODE button.
-        escaped = "\n".join(_html.escape(k) for k in keys)
-        text += f"<pre>{escaped}</pre>\n"
-    if emails:
-        # Second code block: Tempik emails, same order as the keys above.
-        escaped_emails = "\n".join(_html.escape(e) for e in emails)
-        text += f"<pre>{escaped_emails}</pre>\n"
+    footer = ""
     if base_url:
-        text += f"\nBase URL: <code>{_html.escape(base_url)}</code>"
-    text += f"\nAuto inject 9Router: <b>{inject_txt}</b>"
-    text += f"\nAuto inject OmniRoute: <b>{inject_om_txt}</b>"
-    text += f"\nProxy: {_proxy_summary()}"
-    ok, msg = _send_telegram(text)
-    return ok
+        footer += f"\nBase URL: <code>{_html.escape(base_url)}</code>"
+    footer += f"\nAuto inject 9Router: <b>{inject_txt}</b>"
+    footer += f"\nAuto inject OmniRoute: <b>{inject_om_txt}</b>"
+    footer += f"\nProxy: {_proxy_summary()}"
+    keys = keys or []
+    emails = emails or []
+    groups = []
+    cur_keys, cur_emails, cur_len = [], [], 0
+    for i, k in enumerate(keys):
+        e = emails[i] if i < len(emails) else ""
+        pair_len = len(k) + len(e) + 2
+        if cur_keys and ((provider == "Nscale" and len(cur_keys) >= 3) or cur_len + pair_len > 3900):
+            groups.append((cur_keys, cur_emails))
+            cur_keys, cur_emails, cur_len = [], [], 0
+        cur_keys.append(k)
+        cur_emails.append(e)
+        cur_len += pair_len
+    if cur_keys:
+        groups.append((cur_keys, cur_emails))
+    if not groups:
+        groups.append(([], emails))
+    all_ok = True
+    for gi, (gkeys, gemails) in enumerate(groups):
+        if gi == 0:
+            text = (
+                f"{title}\n"
+                f"\n"
+                f"{len(keys)} API Key:\n"
+                f"Total:{total} | ✓Success:{success} | <b>✗</b>Failed:{failed}\n"
+            )
+        else:
+            text = f"{title} (lanjutan {gi + 1}/{len(groups)})\n\n{len(gkeys)} API Key:\n"
+        if gkeys:
+            # Code block -> Telegram shows COPY CODE button.
+            escaped = "\n".join(_html.escape(k) for k in gkeys)
+            text += f"<pre>{escaped}</pre>\n"
+        if gemails and any(gemails):
+            # Second code block: emails, same order as the keys above.
+            escaped_emails = "\n".join(_html.escape(e) for e in gemails)
+            text += f"<pre>{escaped_emails}</pre>\n"
+        if gi == len(groups) - 1:
+            text += footer
+        ok, msg = _send_telegram(text)
+        if not ok:
+            all_ok = False
+    return all_ok
 
 
 # Chunk size for progress notifications on large batches.
