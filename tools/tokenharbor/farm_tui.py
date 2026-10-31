@@ -978,6 +978,67 @@ def _add_nscale_accounts(new: list[tuple[str, str]]) -> tuple[int, int]:
     return added, len(new) - added
 
 
+def _save_nscale_accounts(accounts: list[tuple[str, str]]) -> None:
+    """Rewrite accounts.txt with exactly the given accounts (mode 600)."""
+    path = _nscale_accounts_path()
+    if not accounts:
+        if path.exists():
+            path.unlink()
+        return
+    path.write_text("".join(f"{e}:{pw}" + chr(10) for e, pw in accounts), encoding="utf-8")
+    try:
+        os.chmod(path, 0o600)
+    except Exception:
+        pass
+
+
+def menu_setup_gsuite_delete():
+    """Submenu: delete all GSuite accounts, or select accounts to delete."""
+    accounts = _load_nscale_accounts()
+    if not accounts:
+        _clear_screen(); _header()
+        console.print("\n[dim]Belum ada akun tersimpan.[/dim]")
+        Prompt.ask("\nPress Enter to continue", default="")
+        return
+    _clear_screen(); _header()
+    console.print(f"\n[dim]{len(accounts)} akun tersimpan[/dim]\n")
+    console.print("[1] Hapus semua akun")
+    console.print("[2] Pilih akun untuk dihapus")
+    console.print("[0] Back\n")
+    choice = Prompt.ask("Select", choices=["0", "1", "2"], default="0",
+                        show_choices=False)
+    if choice == "1":
+        if Confirm.ask(f"[red]Hapus SEMUA {len(accounts)} akun?[/red]", default=False):
+            _save_nscale_accounts([])
+            console.print(f"[green]✓ {len(accounts)} akun dihapus.[/green]")
+        else:
+            console.print("Cancelled.")
+        Prompt.ask("\nPress Enter to continue", default="")
+    elif choice == "2":
+        emails = [e for e, _ in accounts]
+        selected = _curses_multiselect(
+            "Pilih akun GSuite untuk dihapus (↑↓ navigate, SPACE toggle, ENTER hapus, q batal)",
+            emails)
+        if selected is None:
+            return
+        if not selected:
+            _clear_screen(); _header()
+            console.print("\n[dim]Tidak ada yang dipilih.[/dim]")
+            Prompt.ask("\nPress Enter to continue", default="")
+            return
+        _clear_screen(); _header()
+        console.print(f"\n[red]Hapus {len(selected)} akun ini?[/red]")
+        for e in selected:
+            console.print(f"  • {e}")
+        if Confirm.ask("", default=False):
+            remaining = [(e, pw) for e, pw in accounts if e not in selected]
+            _save_nscale_accounts(remaining)
+            console.print(f"[green]✓ {len(selected)} dihapus ({len(remaining)} tersisa).[/green]")
+        else:
+            console.print("Cancelled.")
+        Prompt.ask("\nPress Enter to continue", default="")
+
+
 def menu_setup_gsuite():
     """Submenu: enter GSuite accounts for Nscale farming, bulk or single."""
     while True:
@@ -993,13 +1054,17 @@ def menu_setup_gsuite():
         menu.add_row("[1]", "Bulk", "banyak email, satu password untuk semua")
         menu.add_row("[2]", "Single", "satu email, satu password")
         menu.add_row("[3]", "Lihat akun", "daftar email tersimpan (tanpa password)")
+        menu.add_row("[4]", "Hapus akun", "hapus semua / pilih akun untuk dihapus")
         menu.add_row("[0]", "Back", "")
         console.print(menu, justify="center")
         console.print()
-        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3"],
+        choice = Prompt.ask("    [dim]Select Action[/dim]", choices=["0", "1", "2", "3", "4"],
                             default="0", show_choices=False, show_default=False)
         if choice == "0":
             return
+        if choice == "4":
+            menu_setup_gsuite_delete()
+            continue
         if choice == "3":
             console.print(f"[dim]File: {_nscale_accounts_path()}[/dim]")
             if not accounts:
